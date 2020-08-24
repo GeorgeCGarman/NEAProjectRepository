@@ -13,24 +13,18 @@ m = folium.Map(
 
 tooltip = 'Click me!'
 
-count = 0
-max = 500
+count = 1
 for tweet in db['tweets']:
+    print(count)
     # print(tweet['user_location'])
     # places = geograpy.get_place_context(text=tweet['user_location'])
     location = tweet['user_location']
+    print('location:',location)
     if location is not None:
-        places = GeoText(location)
-        # print('countries:', places.countries)
-        # print('cities:', places.cities)
-        if places.cities and places.countries:
-            city = places.cities[0]
-            country = places.countries[0]
-            geolocator = Nominatim(user_agent='map_test')
-            time.sleep(1)
-            loc = geolocator.geocode(str(city + ',' + country))
-            print(loc)
-            popup = 'text:', tweet['text'], 'city:', city
+        geolocator = Nominatim(user_agent='map_test')
+        loc = geolocator.geocode(location)
+        if loc is not None:
+            popup = 'text:',tweet['text']
             polarity = tweet['polarity']
             if polarity < 0:
                 color = 'red'
@@ -38,12 +32,13 @@ for tweet in db['tweets']:
                 color = 'green'
             else:
                 color = 'blue'
-            folium.Marker([loc.latitude, loc.longitude], popup=popup, tooltip=tooltip, icon=folium.Icon(icon='fab fa-twitter',prefix='fa', color=color)).add_to(m)
+            print('loc:',loc)
+            folium.Marker([loc.latitude, loc.longitude], popup=popup, tooltip=tooltip,
+                            icon=folium.Icon(icon='fab fa-twitter', prefix='fa', color=color)).add_to(m)
+            time.sleep(1)
     else:
         print('None')
+    print('')
     count+=1
-    print(count)
-    if count > max:
-        break
 m.save('map.html')
 

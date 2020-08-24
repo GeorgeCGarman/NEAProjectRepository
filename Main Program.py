@@ -33,7 +33,16 @@ class MyStreamListener(tweepy.StreamListener):
         if coords is not None:
             coords = json.dumps(coords)
             #print(coords)
-        print(text)
+        if not status.truncated:
+            print(status.text)
+            # print('text')
+            # print('length:', len(status.text))
+        else:
+            print(status.extended_tweet['full_text'])
+        #     print('full_text')
+        #     print('length:',len(status.extended_tweet['full_text']))
+        # print('')
+
         table = db["tweets"]
         table.insert(dict(
             user_description=description,
@@ -60,5 +69,5 @@ auth.set_access_token("863763963946860544-Xkas3C3b7TW8oEKNWQEOPmryiEGA3Iq", "PTG
 api = tweepy.API(auth)
 
 myStreamListener = MyStreamListener()
-myStream = tweepy.Stream(auth=api.auth, listener=myStreamListener)
+myStream = tweepy.Stream(auth=api.auth, listener=myStreamListener, tweet_mode='extended')
 myStream.filter(track=['vodafone'])
