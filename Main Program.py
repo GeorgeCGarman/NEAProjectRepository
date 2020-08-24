@@ -1,97 +1,64 @@
-import json
 import tweepy
-import sqlite3
-from nltk.sentiment.util import demo_liu_hu_lexicon
-#import matplotlib
+from textblob import TextBlob
+import dataset
+import json
+import folium
+import geograpy
+db = dataset.connect('sqlite:///twitter.db')
 
-connection = sqlite3.connect("NetworkDB.db")
-cursor = connection.cursor()
+# import dataset
+# db = dataset.connect('sqlite:///twitter.db')
+# db['tweets'].delete()
 
-# auth = tweepy.AppAuthHandler("2iOmsupNqQn32DJ1EJuo1sYQz", "0kDqCC3yRqbLEQtIThXe0nwoHS9UXhoLht7R0c2VHiSt2szHPw")
-# auth.set_access_token("863763963946860544-Xkas3C3b7TW8oEKNWQEOPmryiEGA3Iq", "PTGcHBqO4qFxiMD2iPFUBY1wHyCG5Tm0aTshCyhejQk2i")
-# api = tweepy.API(auth)
-# for tweet in tweepy.Cursor(api.search, q='vodafone OR "tesco mobile"', lang='en', geocode='51.752022,-1.257677,100000km', result_type='recent').items(10):
-#    print(tweet.text)
+class MyStreamListener(tweepy.StreamListener):
+    def on_status(self, status):
+        try:
+            if status.retweeted_status:
+                return
+        except:
+            pass
+        description = status.user.description
+        loc = status.user.location
+        text = status.text
+        coords = status.coordinates
+        name = status.user.screen_name
+        user_created = status.user.created_at
+        followers = status.user.followers_count
+        id_str = status.id_str
+        created = status.created_at
+        retweets = status.retweet_count
+        bg_color = status.user.profile_background_color
+        blob = TextBlob(text)
+        sent = blob.sentiment
+        if coords is not None:
+            coords = json.dumps(coords)
+            #print(coords)
+        print(text)
+        table = db["tweets"]
+        table.insert(dict(
+            user_description=description,
+            user_location=loc,
+            coordinates=coords,
+            text=text,
+            user_name=name,
+            user_created=user_created,
+            user_followers=followers,
+            id_str=id_str,
+            created=created,
+            retweet_count=retweets,
+            user_bg_color=bg_color,
+            polarity=sent.polarity,
+            subjectivity=sent.subjectivity, ))
 
-class APIManager:
-    def __init__(self):
-        self.__auth = tweepy.AppAuthHandler("2iOmsupNqQn32DJ1EJuo1sYQz", "0kDqCC3yRqbLEQtIThXe0nwoHS9UXhoLht7R0c2VHiSt2szHPw")
-        self.__api = tweepy.API(self.__auth, wait_on_rate_limit=True)
-    def searchTwitter(self):
-        public_tweets = tweepy.Cursor(self.__api.search,q='vodafone -filter:retweets',geocode='55.3781,-3.4360,500km',truncated='true').items()
-        #print(public_tweets)
-        return public_tweets
-
-class DatabaseManager:
-    def addTweets(self, tweets):
-        count = 1
-        cursor.execute("""DELETE FROM Tweet""")
-        connection.commit()
-        for tweet in tweets:
-            #print(tweet.text)
-            #if tweet.user.location != None:
-                #print(tweet.user.location)
-            #else:
-                #print('error')
-            cursor.execute("""INSERT INTO Tweet 
-                VALUES(?,?,?,?)""", (count,tweet.text,tweet.coordinates,'vodafone'))
-            connection.commit()
-            count += 1
-
-class SentimentAnalyser:
-    def getSentiment(self, sentence):
-        demo_liu_hu_lexicon(sentence)
-
-myAPIManager = APIManager()
-myDatabaseManager = DatabaseManager()
-tweets = myAPIManager.searchTwitter()
-tweetList = []
-for tweet in tweets:
-    # try:
-    #     print(tweet.place.country)
-    # except:
-    #     try:
-    #         print(tweet.user.location)
-    #     except:
-    #         print('none')
-    try:
-        if tweet.place != None:
-            print(tweet.place)
-        else:
-            if tweet.user.location != None:
-                print(tweet.user.location)
-            else:
-                print('None')
-    except:
-        print(tweet)
-    # try:
-    #     if tweet.place.country == 'United Kingdom':
-    #         print(tweet.place)
-    # except:
-    #     try:
-    #         print(tweet.user.location)
-    #     except:
-    #     #     print('none')
-    #         pass
-
-    # try:
-    #     print(tweet)
-    #     print(tweet.place.country)
-    #     if tweet.place.country == 'United Kingdom':
-    #         tweetList.append([tweet.text,tweet.place.full_name])
-    # except:
-    #     pass
+    def on_error(self, status_code):
+        if status_code == 420:
+            return False
 
 
-#print(tweetList)
-#myDatabaseManager.addTweets(tweets)
-#tweetTextList = []
-# for tweet in tweets:
-#     tweetTextList.append(tweet.text)
-# mySentimentAnalyser = SentimentAnalyser()
-# for tweet in tweetTextList:
-#     print(tweet)
-#     mySentimentAnalyser.getSentiment(tweet)
-#     print('')
+auth = tweepy.OAuthHandler("2iOmsupNqQn32DJ1EJuo1sYQz", "0kDqCC3yRqbLEQtIThXe0nwoHS9UXhoLht7R0c2VHiSt2szHPw")
+auth.set_access_token("863763963946860544-Xkas3C3b7TW8oEKNWQEOPmryiEGA3Iq", "PTGcHBqO4qFxiMD2iPFUBY1wHyCG5Tm0aTshCyhejQk2i")
+api = tweepy.API(auth)
 
-connection.close()
+myStreamListener = MyStreamListener()
+myStream = tweepy.Stream(auth=api.auth, listener=myStreamListener)
+myStream.filter(track=['vodafone'])

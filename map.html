@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<head>    
+    <meta http-equiv="content-type" content="text/html; charset=UTF-8" />
+    
+        <script>
+            L_NO_TOUCH = false;
+            L_DISABLE_3D = false;
+        </script>
+    
+    <script src="https://cdn.jsdelivr.net/npm/leaflet@1.6.0/dist/leaflet.js"></script>
+    <script src="https://code.jquery.com/jquery-1.12.4.min.js"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.2.0/js/bootstrap.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Leaflet.awesome-markers/2.0.2/leaflet.awesome-markers.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.6.0/dist/leaflet.css"/>
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.2.0/css/bootstrap.min.css"/>
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.2.0/css/bootstrap-theme.min.css"/>
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/font-awesome/4.6.3/css/font-awesome.min.css"/>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/Leaflet.awesome-markers/2.0.2/leaflet.awesome-markers.css"/>
+    <link rel="stylesheet" href="https://rawcdn.githack.com/python-visualization/folium/master/folium/templates/leaflet.awesome.rotate.css"/>
+    <style>html, body {width: 100%;height: 100%;margin: 0;padding: 0;}</style>
+    <style>#map {position:absolute;top:0;bottom:0;right:0;left:0;}</style>
+    
+            <meta name="viewport" content="width=device-width,
+                initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+            <style>
+                #map_5572f3857410498c865c087170215c20 {
+                    position: relative;
+                    width: 100.0%;
+                    height: 100.0%;
+                    left: 0.0%;
+                    top: 0.0%;
+                }
+            </style>
+        
+</head>
+<body>    
+    
+            <div class="folium-map" id="map_5572f3857410498c865c087170215c20" ></div>
+        
+</body>
+<script>    
+    
+            var map_5572f3857410498c865c087170215c20 = L.map(
+                "map_5572f3857410498c865c087170215c20",
+                {
+                    center: [45.372, -121.6972],
+                    crs: L.CRS.EPSG3857,
+                    zoom: 1,
+                    zoomControl: true,
+                    preferCanvas: false,
+                }
+            );
+
+            
+
+        
+    
+            var tile_layer_da616a5048de4f49918a3d49585a5b54 = L.tileLayer(
+                "https://stamen-tiles-{s}.a.ssl.fastly.net/terrain/{z}/{x}/{y}.jpg",
+                {"attribution": "Map tiles by \u003ca href=\"http://stamen.com\"\u003eStamen Design\u003c/a\u003e, under \u003ca href=\"http://creativecommons.org/licenses/by/3.0\"\u003eCC BY 3.0\u003c/a\u003e. Data by \u0026copy; \u003ca href=\"http://openstreetmap.org\"\u003eOpenStreetMap\u003c/a\u003e, under \u003ca href=\"http://creativecommons.org/licenses/by-sa/3.0\"\u003eCC BY SA\u003c/a\u003e.", "detectRetina": false, "maxNativeZoom": 18, "maxZoom": 18, "minZoom": 0, "noWrap": false, "opacity": 1, "subdomains": "abc", "tms": false}
+            ).addTo(map_5572f3857410498c865c087170215c20);
+        
+    
+            var marker_bd726584a4d0485e85c602b1a5130812 = L.marker(
+                [30.048819, 31.243666],
+                {}
+            ).addTo(map_5572f3857410498c865c087170215c20);
+        
+    
+            var icon_05b23048bfe14303b2f437cc02474681 = L.AwesomeMarkers.icon(
+                {"extraClasses": "fa-rotate-0", "icon": "fab fa-twitter", "iconColor": "white", "markerColor": "blue", "prefix": "fa"}
+            );
+            marker_bd726584a4d0485e85c602b1a5130812.setIcon(icon_05b23048bfe14303b2f437cc02474681);
+        
+    
+        var popup_683f0dcedfc5491cab8975a356ae88e3 = L.popup({"maxWidth": "100%"});
+
+        
+            var html_3f53aded0e7242bb91a865706f78d63b = $(`<div id="html_3f53aded0e7242bb91a865706f78d63b" style="width: 100.0%; height: 100.0%;">('text:', '🖤🤎\n\nRaghm El Masafa ( ft. Asmaa Abo El Yazid ) x Vodafone | ڤودافون x ( رغم ... https://t.co/kgcsf4y2q6 via @YouTube', 'city:', 'Cairo')</div>`)[0];
+            popup_683f0dcedfc5491cab8975a356ae88e3.setContent(html_3f53aded0e7242bb91a865706f78d63b);
+        
+
+        marker_bd726584a4d0485e85c602b1a5130812.bindPopup(popup_683f0dcedfc5491cab8975a356ae88e3)
+        ;
+
+        
+    
+    
+            marker_bd726584a4d0485e85c602b1a5130812.bindTooltip(
+                `<div>
+                     Click me!
+                 </div>`,
+                {"sticky": true}
+            );
+        
+    
+            var marker_19590a36693143b6bb50dabde250e140 = L.marker(
+                [15.3004543, 74.0855134],
+                {}
+            ).addTo(map_5572f3857410498c865c087170215c20);
+        
+    
+            var icon_b76f54c4b1ab439199ced76307c0c8a5 = L.AwesomeMarkers.icon(
+                {"extraClasses": "fa-rotate-0", "icon": "fab fa-twitter", "iconColor": "white", "markerColor": "green", "prefix": "fa"}
+            );
+            marker_19590a36693143b6bb50dabde250e140.setIcon(icon_b76f54c4b1ab439199ced76307c0c8a5);
+        
+    
+        var popup_b54e3d9580074a1b9c74f94645b3c0fa = L.popup({"maxWidth": "100%"});
+
+        
+            var html_d4a917783d55430eaac8209d1960a12a = $(`<div id="html_d4a917783d55430eaac8209d1960a12a" style="width: 100.0%; height: 100.0%;">('text:', '@VodafoneIN \n2 of my numbers have ported from Vodafone to Airtel/Jio. Vodafone is now asking to clear the dues, wak… https://t.co/D4QYiYxC7I', 'city:', 'Goa')</div>`)[0];
+            popup_b54e3d9580074a1b9c74f94645b3c0fa.setContent(html_d4a917783d55430eaac8209d1960a12a);
+        
+
+        marker_19590a36693143b6bb50dabde250e140.bindPopup(popup_b54e3d9580074a1b9c74f94645b3c0fa)
+        ;
+
+        
+    
+    
+            marker_19590a36693143b6bb50dabde250e140.bindTooltip(
+                `<div>
+                     Click me!
+                 </div>`,
+                {"sticky": true}
+            );
+        
+    
+            var marker_dfd80c263fd24d8bb1b4a648287ac1c5 = L.marker(
+                [28.6138954, 77.2090057],
+                {}
+            ).addTo(map_5572f3857410498c865c087170215c20);
+        
+    
+            var icon_244aa06f9eca4e01a2b0615d0ae679d7 = L.AwesomeMarkers.icon(
+                {"extraClasses": "fa-rotate-0", "icon": "fab fa-twitter", "iconColor": "white", "markerColor": "red", "prefix": "fa"}
+            );
+            marker_dfd80c263fd24d8bb1b4a648287ac1c5.setIcon(icon_244aa06f9eca4e01a2b0615d0ae679d7);
+        
+    
+        var popup_2740ac24f15d4daeb73370e03815d03f = L.popup({"maxWidth": "100%"});
+
+        
+            var html_82cdeea89e174a31adbd2ba5b12b045d = $(`<div id="html_82cdeea89e174a31adbd2ba5b12b045d" style="width: 100.0%; height: 100.0%;">('text:', 'I hv ported out because of ur pathetic service.u hv already charged extra amount as I hv taken the tarrif now why a… https://t.co/l0Jc3zTi6r', 'city:', 'New Delhi')</div>`)[0];
+            popup_2740ac24f15d4daeb73370e03815d03f.setContent(html_82cdeea89e174a31adbd2ba5b12b045d);
+        
+
+        marker_dfd80c263fd24d8bb1b4a648287ac1c5.bindPopup(popup_2740ac24f15d4daeb73370e03815d03f)
+        ;
+
+        
+    
+    
+            marker_dfd80c263fd24d8bb1b4a648287ac1c5.bindTooltip(
+                `<div>
+                     Click me!
+                 </div>`,
+                {"sticky": true}
+            );
+        
+    
+            var marker_59eeb434a5da44c98456c730173dbecb = L.marker(
+                [13.0801721, 80.2838331],
+                {}
+            ).addTo(map_5572f3857410498c865c087170215c20);
+        
+    
+            var icon_085b16bbfea1497c9707fb09f42df39c = L.AwesomeMarkers.icon(
+                {"extraClasses": "fa-rotate-0", "icon": "fab fa-twitter", "iconColor": "white", "markerColor": "green", "prefix": "fa"}
+            );
+            marker_59eeb434a5da44c98456c730173dbecb.setIcon(icon_085b16bbfea1497c9707fb09f42df39c);
+        
+    
+        var popup_5d0d9adf58cc4e0292cd9836ddd657a7 = L.popup({"maxWidth": "100%"});
+
+        
+            var html_77412f35e89c40cdb5e5b4777797fb2e = $(`<div id="html_77412f35e89c40cdb5e5b4777797fb2e" style="width: 100.0%; height: 100.0%;">('text:', '@VodafoneIN Team, this is proving that vodafone is supporting discrimination based on language. Please share with i… https://t.co/WaegPXF2kJ', 'city:', 'Chennai')</div>`)[0];
+            popup_5d0d9adf58cc4e0292cd9836ddd657a7.setContent(html_77412f35e89c40cdb5e5b4777797fb2e);
+        
+
+        marker_59eeb434a5da44c98456c730173dbecb.bindPopup(popup_5d0d9adf58cc4e0292cd9836ddd657a7)
+        ;
+
+        
+    
+    
+            marker_59eeb434a5da44c98456c730173dbecb.bindTooltip(
+                `<div>
+                     Click me!
+                 </div>`,
+                {"sticky": true}
+            );
+        
+</script>
