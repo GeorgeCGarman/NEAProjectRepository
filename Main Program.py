@@ -4,6 +4,7 @@ import dataset
 import json
 import folium
 import geograpy
+import MapTest
 db = dataset.connect('sqlite:///twitter.db')
 
 # import dataset
@@ -19,7 +20,11 @@ class MyStreamListener(tweepy.StreamListener):
             pass
         description = status.user.description
         loc = status.user.location
-        text = status.text
+        if not status.truncated:
+            text = status.text
+        else:
+            text = status.extended_tweet['full_text']
+        print(text)
         coords = status.coordinates
         name = status.user.screen_name
         user_created = status.user.created_at
@@ -33,18 +38,9 @@ class MyStreamListener(tweepy.StreamListener):
         if coords is not None:
             coords = json.dumps(coords)
             #print(coords)
-        if not status.truncated:
-            print(status.text)
-            # print('text')
-            # print('length:', len(status.text))
-        else:
-            print(status.extended_tweet['full_text'])
-        #     print('full_text')
-        #     print('length:',len(status.extended_tweet['full_text']))
-        # print('')
 
         table = db["tweets"]
-        table.insert(dict(
+        row = dict(
             user_description=description,
             user_location=loc,
             coordinates=coords,
@@ -57,7 +53,9 @@ class MyStreamListener(tweepy.StreamListener):
             retweet_count=retweets,
             user_bg_color=bg_color,
             polarity=sent.polarity,
-            subjectivity=sent.subjectivity, ))
+            subjectivity=sent.subjectivity, )
+        table.insert(row)
+        #MapTest.addMarker(row)
 
     def on_error(self, status_code):
         if status_code == 420:
