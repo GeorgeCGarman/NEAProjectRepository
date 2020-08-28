@@ -1,10 +1,12 @@
 import tweepy
 from textblob import TextBlob
+from geopy.geocoders import Nominatim
 import dataset
 import json
 import folium
 import geograpy
-import MapTest
+import time
+import tree
 db = dataset.connect('sqlite:///twitter.db')
 
 # import dataset
@@ -18,13 +20,13 @@ class MyStreamListener(tweepy.StreamListener):
                 return
         except:
             pass
-        description = status.user.description
-        loc = status.user.location
+
         if not status.truncated:
             text = status.text
         else:
             text = status.extended_tweet['full_text']
-        print(text)
+        description = status.user.description
+        loc = status.user.location
         coords = status.coordinates
         name = status.user.screen_name
         user_created = status.user.created_at
@@ -55,7 +57,24 @@ class MyStreamListener(tweepy.StreamListener):
             polarity=sent.polarity,
             subjectivity=sent.subjectivity, )
         table.insert(row)
-        #MapTest.addMarker(row)
+        table = db["locations"]
+        print()
+        print('text:',text)
+        print('place:',status.place)
+        print('user_location:',loc)
+        if loc is not None:
+            geolocator = Nominatim(user_agent='map_test')
+            geoInfo = geolocator.geocode(loc, language='en')
+            time.sleep(1)
+            if geoInfo is not None:
+                print('geoInfo.address:',geoInfo.address)
+                #print('geoInfo:',geoInfo.raw)
+                address = geoInfo.address.replace(" ","").split(',')
+                print(address)
+                print(geoInfo.raw)
+                tree.add(id_str,address)
+
+
 
     def on_error(self, status_code):
         if status_code == 420:
@@ -69,3 +88,4 @@ api = tweepy.API(auth)
 myStreamListener = MyStreamListener()
 myStream = tweepy.Stream(auth=api.auth, listener=myStreamListener, tweet_mode='extended')
 myStream.filter(track=['vodafone'])
+#myStream.filter(locations=[-7.57216793459, 49.959999905, 1.68153079591, 58.6350001085])
