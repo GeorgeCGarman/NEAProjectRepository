@@ -5,64 +5,72 @@ import json
 from textblob import TextBlob
 import map
 import time
+import dataset
 
-TWITTER_APP_KEY = "2iOmsupNqQn32DJ1EJuo1sYQz"
+TWITTER_APP_KEY = "2iOmsupNqQn32DJ1EJuo1sYQz"  # Authentication codes for Twitter API
 TWITTER_APP_SECRET = "0kDqCC3yRqbLEQtIThXe0nwoHS9UXhoLht7R0c2VHiSt2szHPw"
 
-auth = tweepy.OAuthHandler(TWITTER_APP_KEY, TWITTER_APP_SECRET) # Authentication for use of Twitter API.
-                                                                # Keys provided when creating a Twitter Application
-                                                                # as a Twitter Developer
+auth = tweepy.AppAuthHandler(TWITTER_APP_KEY, TWITTER_APP_SECRET)  # Authentication for use of Twitter API.
+# Keys provided when creating a Twitter Application
+# as a Twitter Developer
 api = tweepy.API(auth)
 
-conn = sqlite3.connect('twitterDB.db') # Connect to sqlite3 database
+conn = sqlite3.connect('twitterDB.db')  # Connect to sqlite3 database
 sql_cursor = conn.cursor()
 
+
 def get_data():  # Loop over each county (region) and request for tweets within it
-    all_regions = sql_cursor.execute("""SELECT ctyua17nm, lat, long, st_areashape
-                                FROM Counties_and_Unitary_Authorities__December_2017__Boundaries_UK""").fetchall()
-                                # Get the relevant information from every county (named as 'regions') in the database
+    all_regions = sql_cursor.execute("""SELECT name, latitude, longitude, area
+                                FROM Regions""").fetchall()
+    db = dataset.connect("sqlite:///twitterDB.db")
+    table = db["Regions"]
+    count = 0
+    for count in range(0, len(all_regions)):
+        name = table.find(region_id=count)['name']
+        db.query("UPDATE region_name")
+        table = db['Tweets']
+        table.query('region_name=name, region_id=count')
+        count+=1
+    # Get the relevant information from every county (named as 'regions') in the database
     rate_limit_reached = False
     count = 0
-    while count < len(all_regions): # Loop over each county
+    while count < len(all_regions):  # Loop over each county
         region = all_regions[count]
         region, lat, long, area = region[0], region[1], region[2], region[3]
         public_tweets = get_tweets_for_region(region, lat, long, area)
-        while not rate_limit_reached: # Loop over each tweet received and insert it into the database
+        while not rate_limit_reached:  # Loop over each tweet received and insert it into the database
             try:
                 tweet = public_tweets.next()
                 add_to_table(tweet, region)
-            except tweepy.TweepError: # If the rate limit has been reached (450 requests made), raise an exception
+            except tweepy.TweepError:  # If the rate limit has been reached (450 requests made), raise an exception
                 rate_limit_reached = True
-            except StopIteration: # If we have finished iterating over all the tweets in public_tweets
+            except StopIteration:  # If we have finished iterating over all the tweets in public_tweets
                 break
 
         if rate_limit_reached:
             print("Error, max requests exceeded")
-            map.make_map() # Show the map
-            time.sleep(60 * 15) # Wait 15 minutes for rate limit to run out. After it runs out,
-                                # the last county searched is searched again, and it continues from there.
-            rate_limit_reached = False
+            break # Stop if rate limit reached
         else:
             count += 1
         print(count)
 
 
-def get_tweets_for_region(region, lat, long, area): # Makes the request to the API for tweets within a specific area
+def get_tweets_for_region(region, lat, long, area):  # Makes the request to the API for tweets within a specific area
     print(region)
-    radius = math.sqrt(area / math.pi) / 1000 # The Twitter API allows you to search for tweets within a radius of a
-                                              # lat and long. Here the radius is approximated from the area of the
-                                              # region.
+    radius = math.sqrt(area / math.pi) / 1000  # The Twitter API allows you to search for tweets within a radius of a
+    # lat and long. Here the radius is approximated from the area of the
+    # region.
     geocode = str(str(lat) + "," + str(long) + "," + str(radius) + "km")
     public_tweets = tweepy.Cursor(api.search,
                                   q='vodafone -filter:retweets',
                                   geocode=geocode,
                                   tweet_mode='extended').items()
-                                    # searches for tweets with the keyword vodafone in their text,
-                                    # filtering out retweets, and in extended mode, which returns the full tweet text
+    # searches for tweets with the keyword vodafone in their text,
+    # filtering out retweets, and in extended mode, which returns the full tweet text
     return public_tweets
 
 
-def add_to_table(tweet, region): # Parse the tweet JSON and insert it into the sqlite3 table
+def add_to_table(tweet, region):  # Parse the tweet JSON and insert it into the sqlite3 table
     json_str = json.dumps(tweet._json)
     parsed = json.loads(json_str)
 
@@ -70,29 +78,29 @@ def add_to_table(tweet, region): # Parse the tweet JSON and insert it into the s
     id_str = parsed['id']
     text = parsed['full_text']
     sentiment = TextBlob(text).sentiment
-    polarity = sentiment.polarity # how positive or negative the tweet is
-    subjectivity = sentiment.subjectivity # subjective sentences generally refer to personal opinion,
-                                          # emotion or judgment whereas objective refers to factual information
-    created_at = parsed['created_at']
-    retweet_count = parsed['retweet_count']
-    favorite_count = parsed['favorite_count']  # nullable
-    user_id = parsed['user']['id_str']
+    polarity = sentiment.polarity  # how positive or negative the tweet is
+    subjectivity = sentiment.subjectivity  # subjective sentences generally refer to personal opinion,
+    # emotion or judgment whereas objective refers to factual information
+    created_at = parsed['created_at']  # Date tweet was created
+    retweet_count = parsed['retweet_count']  # How many retweets
+    favorite_count = parsed['favorite_count']  # How many favourites
+    user_id = parsed['user']['id_str']  # Link tweet to its user
 
     # user attributes
     user = parsed['user']
     user_id_str = user['id_str']
     user_name = user['name']
-    user_location = user['location']
-    user_description = user['description']
-    user_verified = user['verified']
+    user_location = user['location']  # Location user gives in their profile. E.g. 'London, UK'
+    user_description = user['description']  # Twitter bio
+    user_verified = user['verified']  # Is the user verified?
     user_followers_count = user['followers_count']
     user_friends_count = user['friends_count']
     user_favourites_count = user['favourites_count']
-    user_statuses_count = user['statuses_count']
-    user_created_at = user['created_at']
+    user_statuses_count = user['statuses_count']  # How many tweets user has made
+    user_created_at = user['created_at']  # Date when account was created
 
     try:
-        sql_cursor.execute("""INSERT INTO tweets VALUES (?,?,?,?,?,?,?,?,?)""",
+        sql_cursor.execute("""INSERT INTO Tweets VALUES (?,?,?,?,?,?,?,?,?)""",
                            (id_str,
                             text,
                             polarity,
@@ -103,10 +111,10 @@ def add_to_table(tweet, region): # Parse the tweet JSON and insert it into the s
                             user_id,
                             region))
         conn.commit()
-    except sqlite3.IntegrityError: # if the tweet is already in the database, discard it.
+    except sqlite3.IntegrityError:  # if the tweet is already in the database, discard it.
         pass
     try:
-        sql_cursor.execute("""INSERT INTO users VALUES (?,?,?,?,?,?,?,?,?,?)""",
+        sql_cursor.execute("""INSERT INTO Users VALUES (?,?,?,?,?,?,?,?,?,?)""",
                            (user_id_str,
                             user_name,
                             user_location,
@@ -124,4 +132,3 @@ def add_to_table(tweet, region): # Parse the tweet JSON and insert it into the s
 
 get_data()
 conn.close()
-map.make_map()
