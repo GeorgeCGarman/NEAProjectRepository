@@ -14,12 +14,13 @@ def make_map():
         feature['id'] = feature['properties']['NAME_2']
 
         d['id'].append(feature['id'])
-        table = db['tweets']
-        results = table.find(region=feature['id'])
+        table = db['Tweets']
+        results = table.find(region_name=feature['id'])
         totalSent = 0
         count = 0
         fulltext = ''
         for result in results:
+            print(result)
             totalSent += result['polarity']
             count += 1
             text = result['text']
@@ -30,6 +31,7 @@ def make_map():
         if count > 0:
             averageSent = totalSent/count
             d['averageSent'].append(averageSent)
+            print(averageSent)
         else:
             d['averageSent'].append(0.0)
 
@@ -38,7 +40,7 @@ def make_map():
     fig = go.Figure(go.Choroplethmapbox(geojson=uk_regions, locations=df['id'],
                                z=df['averageSent'], zmin=-1, zmax=1,
                                colorscale= "viridis", #["red", "white", "green"], #[(0,"red"), (0.4,"lightred"), (0.5,"yellow"), (0.6,"lightgreen"), (1,"green")],
-                               marker_line_width=0.1,
+                               marker_line_width=0.0,
                                text=df['count']))
 
     fig.update_layout(mapbox_style="carto-darkmatter",

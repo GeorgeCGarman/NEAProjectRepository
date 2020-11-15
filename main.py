@@ -21,42 +21,21 @@ sql_cursor = conn.cursor()
 
 
 def get_data():  # Loop over each county (region) and request for tweets within it
-    all_regions = sql_cursor.execute("""SELECT name, latitude, longitude, area
+    all_regions = sql_cursor.execute("""SELECT name, latitude, longitude, radius
                                 FROM Regions""").fetchall()
-    db = dataset.connect("sqlite:///twitterDB.db")
-    table = db["Regions"]
-    count = 1
-    while count < len(all_regions):
-        print(count)
-        print(table.find_one(region_id=count)['name'])
-        try:
-            name = table.find_one(region_id=count)['name']
-        except:
-            name = None
-        print(name)
-        if name is not None:
-            print('count=',count)
-            table = db['Tweets']
-            print('table.find_one(name):', table.find_one(name))
-            try:
-                sql_cursor.execute("""UPDATE Tweets
-                        SET region_id=%d
-                        WHERE region_name=%s""" % (count, name))
-            except sqlite3.OperationalError:
-                print('passed')
-                pass
-        count += 1
+
     # Get the relevant information from every county (named as 'regions') in the database
     rate_limit_reached = False
     count = 0
     while count < len(all_regions):  # Loop over each county
         region = all_regions[count]
-        region, lat, long, area = region[0], region[1], region[2], region[3]
-        public_tweets = get_tweets_for_region(region, lat, long, area)
+        region_name, lat, long, radius = region[0], region[1], region[2], region[3]
+        print(region_name)
+        public_tweets = get_tweets_for_region(lat, long, radius)
         while not rate_limit_reached:  # Loop over each tweet received and insert it into the database
             try:
                 tweet = public_tweets.next()
-                add_to_table(tweet, region)
+                add_to_table(tweet, region_name)
             except tweepy.TweepError:  # If the rate limit has been reached (450 requests made), raise an exception
                 rate_limit_reached = True
             except StopIteration:  # If we have finished iterating over all the tweets in public_tweets
@@ -70,11 +49,7 @@ def get_data():  # Loop over each county (region) and request for tweets within 
         print(count)
 
 
-def get_tweets_for_region(region, lat, long, area):  # Makes the request to the API for tweets within a specific area
-    print(region)
-    radius = math.sqrt(area / math.pi) / 1000  # The Twitter API allows you to search for tweets within a radius of a
-    # lat and long. Here the radius is approximated from the area of the
-    # region.
+def get_tweets_for_region(lat, long, radius):  # Makes the request to the API for tweets within a specific area
     geocode = str(str(lat) + "," + str(long) + "," + str(radius) + "km")
     public_tweets = tweepy.Cursor(api.search,
                                   q='vodafone -filter:retweets',
@@ -85,7 +60,8 @@ def get_tweets_for_region(region, lat, long, area):  # Makes the request to the 
     return public_tweets
 
 
-def add_to_table(tweet, region):  # Parse the tweet JSON and insert it into the sqlite3 table
+def add_to_table(tweet, region):  # Parse the tweet JSON and insert it into the sqlite3 table. The region parameter
+    # specifies the region the tweet came from
     json_str = json.dumps(tweet._json)
     parsed = json.loads(json_str)
 
@@ -127,6 +103,7 @@ def add_to_table(tweet, region):  # Parse the tweet JSON and insert it into the 
                             region))
         conn.commit()
     except sqlite3.IntegrityError:  # if the tweet is already in the database, discard it.
+        print('Error, repeated tweet')
         pass
 
     try:
@@ -143,8 +120,49 @@ def add_to_table(tweet, region):  # Parse the tweet JSON and insert it into the 
                             user_created_at))
         conn.commit()
     except sqlite3.IntegrityError:
+        print('Error, repeated user')
         pass
 
 
 get_data()
+
+# tweets = get_tweets_for_region(52.68778992, -1.3779, 2083786961.39186)
+# for tweet in tweets:
+#     json_str = json.dumps(tweet._json)
+#     parsed = json.loads(json_str)
+#     text = parsed['full_text']
+#     user = parsed['user']
+#     user_location = user['location']
+#     print(text)
+#     print(user_location)
+#     print()
+
+# tweets = get_tweets_for_region(52.68778992, -1.3779, 2083786961.39186)
+# tweets.next()
+# firstTweet = tweets.next()
+# json_str = json.dumps(firstTweet._json)
+# parsed = json.loads(json_str)
+# print(parsed['full_text'])
+# add_to_table(firstTweet, 'Oxfordshire')
+
+# tweets = sql_cursor.execute("""SELECT Tweets.text, Users.user_name
+#                       FROM Tweets, Users
+#                       WHERE Tweets.user_id = Users.user_id
+#                       AND Tweets.polarity < -0.5""").fetchall()
+# for tweet in tweets:
+#     print(tweet[0])
+#     print(tweet[1])
+#     print()
+# all_regions = sql_cursor.execute("""SELECT name, latitude, longitude, area
+#                                 FROM Regions""").fetchall()
+# for region in all_regions:
+#     name = region[0]
+#     area = region[3]
+#     radius = math.sqrt(area / math.pi) / 1000
+#     print(radius)
+#     sql_cursor.execute("""UPDATE Regions
+#                       SET radius = ?
+#                       WHERE name = ?""", (radius, name))
+#     conn.commit()
+# map.make_map()
 conn.close()
