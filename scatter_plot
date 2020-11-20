@@ -1,0 +1,27 @@
+import pandas as pd
+import sqlite3
+from datetime import datetime
+import plotly.graph_objects as go
+
+
+def make_scatter_for(region_name):
+    con = sqlite3.connect("twitterDB.db")
+    df = pd.read_sql_query("SELECT text, polarity, created_at "
+                           "FROM Tweets "
+                           "WHERE region_name='{}' ".format(region_name), con)
+    def to_datetime(dtime):
+        return datetime.strptime(dtime,'%a %b %d %H:%M:%S +0000 %Y') #.date()
+
+    df['created_at'] = df['created_at'].apply(to_datetime)
+    fig = go.Figure(data=go.Scatter(x=df['created_at'], y=df['polarity'], mode='markers', hoverinfo="text"))
+    # fig = px.scatter(df, x="created_at",
+    #                  y="polarity",
+    #                  title="Tweets",
+    #                  hover_data="text")
+    fig.update_traces(text=df['text'])
+    fig.show()
+    return fig
+make_scatter_for('Argyll and Bute')
+
+
+
