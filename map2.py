@@ -3,6 +3,7 @@ import dash_core_components as dcc
 import dash_html_components as html
 import plotly.graph_objs as go
 from dash.dependencies import Input, Output
+from plotly.subplots import make_subplots
 
 import sqlite3
 import json
@@ -15,6 +16,19 @@ uk_regions = json.load(open("ukcounties.json", 'r'))  # Convert the geojson (jso
 # subregions) into a dictionary
 
 def make_map():
+    def get_scatter_data(region_name):
+        con = sqlite3.connect("twitterDB.db")
+        scatterdf = pd.read_sql_query("SELECT text, polarity, created_at "
+                               "FROM Tweets "
+                               "WHERE region_name='{}' ".format(region_name), con)
+
+        def to_datetime(dtime):
+            return datetime.strptime(dtime, '%a %b %d %H:%M:%S +0000 %Y')  # Converts Twitter time to a date
+
+        scatterdf['created_at'] = scatterdf['created_at'].apply(to_datetime)
+        scatter = go.Scatter(x=scatterdf['created_at'], y=scatterdf['polarity'], mode='markers')
+        return scatter
+
     d = {'id': [], 'avg_sent': [], 'count': []}
     for feature in uk_regions['features']:
         feature['id'] = feature['properties']['NAME_2']
@@ -41,37 +55,59 @@ def make_map():
     df['normal_avg_sent'] = df['avg_sent'] * df['count']
     max_avg_sent = max(map(abs, df['normal_avg_sent']))
     df['normal_avg_sent'] = df['normal_avg_sent'] / max_avg_sent
-    fig = go.Figure(go.Choroplethmapbox(geojson=uk_regions, locations=df['id'],
-                                        z=df['normal_avg_sent'], zmin=-1, zmax=1,
-                                        colorscale=["red", "white", "blue"],
-                                        marker_line_width=0.5,
-                                        ))  # text=df['count']
+
+    map_figure = go.Choroplethmapbox(
+                            geojson=uk_regions,
+                            locations=df['id'],
+                            z=df['normal_avg_sent'],
+                            zmin=-1,
+                            zmax=1,
+                            colorscale=["red", "white", "blue"],
+                            marker_line_width=0.5,
+                )
+    fig = make_subplots(rows=1, cols=2,
+                        specs=[[{'type': 'mapbox'},{'type': 'xy'}]])
+    scatter = get_scatter_data("Greater London")
+    fig.append_trace(map_figure,1,1)
+    fig.append_trace(scatter, 1, 2)
+
     fig.update_layout(mapbox_style="carto-positron",
                       mapbox_zoom=4, mapbox_center={"lat": 55.3781, "lon": -3.4360})
     app = dash.Dash()
-    app.layout = html.Div([dcc.Graph(id='map',
-                                     figure=fig),
-                           # html.Div([html.Pre(id='hover-data', style={'paddingTop':35})], style={'width':'30%'})
-                           dcc.Graph(id='scatter')
-                           ])
+    app.layout = html.Div([dcc.Graph(id='fig',
+                                     figure=fig)
+                            ])
 
-    @app.callback(Output('scatter', 'figure'),
-                  [Input('map', 'clickData')])
+    @app.callback(Output('fig', 'figure'),
+                  [Input('fig', 'clickData')])
     def update_graph(clickData):
+        if clickData is None: return
         location = clickData['points'][0]['location']
-        data = get_scatter_data(location)
-        return {'data': [data], 'layout': {'title': 'Tweets from {}'.format(location)}}
+        scatter = get_scatter_data(location)
+        fig.add_trace(scatter, 1, 2)
+        fig.show()
+        #fig.update_traces(data=scatter, col=1)
+        # myfig = go.Figure(scatter)
+        # map_figure = go.Choroplethmapbox(
+        #         geojson=uk_regions,
+        #         locations=df['id'],
+        #         z=df['normal_avg_sent'],
+        #         zmin=-1,
+        #         zmax=1,
+        #         colorscale=["red", "green", "blue"],
+        #         marker_line_width=0.5,
+        #         )
+        # newfig = make_subplots(rows=1, cols=2,
+        #                     specs=[[{'type': 'mapbox'}, {'type': 'xy'}]])
+        # newfig.add_trace(map_figure, 1, 1)
+        # newfig.add_trace(scatter, 1, 2)
+        # newfig.update_layout(mapbox_style="carto-positron",
+        #                   mapbox_zoom=4, mapbox_center={"lat": 55.3781, "lon": -3.4360})
+        #newfig.show()
+        #fig.update_layout(mapbox_style="carto-positron",
+                          #mapbox_zoom=4, mapbox_center={"lat": 55.3781, "lon": -3.4360})
+        return fig
 
     app.run_server()
 
-def get_scatter_data(region_name):
-    con = sqlite3.connect("twitterDB.db")
-    df = pd.read_sql_query("SELECT text, polarity, created_at "
-                           "FROM Tweets "
-                           "WHERE region_name='{}' ".format(region_name), con)
-    def to_datetime(dtime):
-        return datetime.strptime(dtime,'%a %b %d %H:%M:%S +0000 %Y') #.date()
-
-    df['created_at'] = df['created_at'].apply(to_datetime)
-    data = go.Scatter(x=df['created_at'], y=df['polarity'], mode='markers')
-    return data
+make_map()
