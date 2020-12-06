@@ -29,7 +29,7 @@ def make_map():
         scatter = go.Scatter(x=scatterdf['created_at'], y=scatterdf['polarity'], mode='markers')
         return scatter
 
-    d = {'id': [], 'avg_sent': [], 'count': []}
+    d = {'id': [], 'avg_sent': [], 'overall_sent': [], 'count': []}
     for feature in uk_regions['features']:
         feature['id'] = feature['properties']['NAME_2']
         d['id'].append(feature['id'])
@@ -38,25 +38,28 @@ def make_map():
         tweet_sents = cursor.execute("SELECT polarity "
                                      "FROM Tweets "
                                      "WHERE region_name='{}' ".format(region_name)).fetchall()
-        total_sent = 0
+        overall_sent = 0
         count = 0
         for sent in tweet_sents:  # Calculating average sentiment polarity
-            total_sent += sent
+            overall_sent += sent
             count += 1
         d['count'].append(count)
 
         if count > 0:
-            avg_sent = total_sent / count
+            avg_sent = overall_sent / count
             d['avg_sent'].append(avg_sent)
         else:
             d['avg_sent'].append(0.0)
+        d['overall_sent'].append(overall_sent)
     df = pd.DataFrame(d)
     # normal_avg_sent = (avg_sent * count)/(max_avg_sent * max_count)
-    df['normal_avg_sent'] = df['avg_sent'] * df['count']
-    max_avg_sent = max(map(abs, df['normal_avg_sent']))
-    df['normal_avg_sent'] = df['normal_avg_sent'] / max_avg_sent
+    # df['normal_avg_sent'] = df['avg_sent'] * df['count']
+    max_overall_sent = max(map(abs, df['overall_sent']))
+    # df['normal_avg_sent'] = df['normal_avg_sent'] / max_avg_sent
 
-    map_trace = go.Choroplethmapbox(
+    df['normal_avg_sent'] = df['overall_sent'] / max_overall_sent
+
+    map_figure = go.Choroplethmapbox(
                             geojson=uk_regions,
                             locations=df['id'],
                             z=df['normal_avg_sent'],
@@ -66,36 +69,23 @@ def make_map():
                             marker_line_width=0.5,
                 )
 
-    # scatter = get_scatter_data("Greater London")
-    # fig.append_trace(map_figure,1,1)
-    # fig.append_trace(scatter, 1, 2)
-    #
-
     app = dash.Dash()
 
-    # fig = go.Figure(map_figure)
-    # fig.update_layout(mapbox_style="carto-positron",
+    fig = go.Figure(map_figure)
+    fig.update_layout(mapbox_style="carto-positron")
     #                   mapbox_zoom=4, mapbox_center={"lat": 55.3781, "lon": -3.4360})
     # fig = make_subplots(rows=1, cols=2, specs=[[{'type': 'mapbox'},{'type': 'xy'}]])
-    # app.layout = html.Div([dcc.Graph(id='fig',
-    #                                  figure=fig),
-    #                        dcc.Graph(id='my_scatter')
-    #                         ], style={'display': 'inline-block'})
-    data = get_scatter_data('Greater London')
-    scatter_trace = go.Figure({'data': [data],'layout': {'title': 'Tweets from {}'.format('Greater London')}})
-    fig = make_subplots(rows=1, cols=2, specs=[[{'type': 'mapbox'}, {'type': 'xy'}]])
-    fig.append_trace(map_trace, 1, 1)
-    fig.append_trace(scatter_trace, 1, 2)
+    app.layout = html.Div([dcc.Graph(id='fig',
+                                      figure=fig),
+                           dcc.Graph(id='my_scatter')
+                            ])
 
     @app.callback(Output('my_scatter', 'figure'),
-                  [Input('fig', 'clickData')]
-                  [State('fig','figure')])
-    def update_graph(clickData,figure):
+                  [Input('fig', 'clickData')])
+    def update_graph(clickData):
         location = clickData['points'][0]['location']
         data = get_scatter_data(location)
-        figure.data[1] = data
-        #return {'data': [data], 'layout': {'title': 'Tweets from {}'.format(location)}}
-        return figure
+        return {'data': [data], 'layout': {'title': 'Tweets from {}'.format(location)}}
 
     app.run_server()
 
