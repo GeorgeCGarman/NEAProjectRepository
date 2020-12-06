@@ -2,7 +2,7 @@ import dash
 import dash_core_components as dcc
 import dash_html_components as html
 import plotly.graph_objs as go
-from dash.dependencies import Input, Output
+from dash.dependencies import Input, Output, State
 from plotly.subplots import make_subplots
 
 import sqlite3
@@ -56,7 +56,7 @@ def make_map():
     max_avg_sent = max(map(abs, df['normal_avg_sent']))
     df['normal_avg_sent'] = df['normal_avg_sent'] / max_avg_sent
 
-    map_figure = go.Choroplethmapbox(
+    map_trace = go.Choroplethmapbox(
                             geojson=uk_regions,
                             locations=df['id'],
                             z=df['normal_avg_sent'],
@@ -65,48 +65,37 @@ def make_map():
                             colorscale=["red", "white", "blue"],
                             marker_line_width=0.5,
                 )
-    fig = make_subplots(rows=1, cols=2,
-                        specs=[[{'type': 'mapbox'},{'type': 'xy'}]])
-    scatter = get_scatter_data("Greater London")
-    fig.append_trace(map_figure,1,1)
-    fig.append_trace(scatter, 1, 2)
 
-    fig.update_layout(mapbox_style="carto-positron",
-                      mapbox_zoom=4, mapbox_center={"lat": 55.3781, "lon": -3.4360})
+    # scatter = get_scatter_data("Greater London")
+    # fig.append_trace(map_figure,1,1)
+    # fig.append_trace(scatter, 1, 2)
+    #
+
     app = dash.Dash()
-    app.layout = html.Div([dcc.Graph(id='fig',
-                                     figure=fig)
-                            ])
 
-    @app.callback(Output('fig', 'figure'),
-                  [Input('fig', 'clickData')])
-    def update_graph(clickData):
-        if clickData is None: return
+    # fig = go.Figure(map_figure)
+    # fig.update_layout(mapbox_style="carto-positron",
+    #                   mapbox_zoom=4, mapbox_center={"lat": 55.3781, "lon": -3.4360})
+    # fig = make_subplots(rows=1, cols=2, specs=[[{'type': 'mapbox'},{'type': 'xy'}]])
+    # app.layout = html.Div([dcc.Graph(id='fig',
+    #                                  figure=fig),
+    #                        dcc.Graph(id='my_scatter')
+    #                         ], style={'display': 'inline-block'})
+    data = get_scatter_data('Greater London')
+    scatter_trace = go.Figure({'data': [data],'layout': {'title': 'Tweets from {}'.format('Greater London')}})
+    fig = make_subplots(rows=1, cols=2, specs=[[{'type': 'mapbox'}, {'type': 'xy'}]])
+    fig.append_trace(map_trace, 1, 1)
+    fig.append_trace(scatter_trace, 1, 2)
+
+    @app.callback(Output('my_scatter', 'figure'),
+                  [Input('fig', 'clickData')]
+                  [State('fig','figure')])
+    def update_graph(clickData,figure):
         location = clickData['points'][0]['location']
-        scatter = get_scatter_data(location)
-        fig.add_trace(scatter, 1, 2)
-        fig.show()
-        #fig.update_traces(data=scatter, col=1)
-        # myfig = go.Figure(scatter)
-        # map_figure = go.Choroplethmapbox(
-        #         geojson=uk_regions,
-        #         locations=df['id'],
-        #         z=df['normal_avg_sent'],
-        #         zmin=-1,
-        #         zmax=1,
-        #         colorscale=["red", "green", "blue"],
-        #         marker_line_width=0.5,
-        #         )
-        # newfig = make_subplots(rows=1, cols=2,
-        #                     specs=[[{'type': 'mapbox'}, {'type': 'xy'}]])
-        # newfig.add_trace(map_figure, 1, 1)
-        # newfig.add_trace(scatter, 1, 2)
-        # newfig.update_layout(mapbox_style="carto-positron",
-        #                   mapbox_zoom=4, mapbox_center={"lat": 55.3781, "lon": -3.4360})
-        #newfig.show()
-        #fig.update_layout(mapbox_style="carto-positron",
-                          #mapbox_zoom=4, mapbox_center={"lat": 55.3781, "lon": -3.4360})
-        return fig
+        data = get_scatter_data(location)
+        figure.data[1] = data
+        #return {'data': [data], 'layout': {'title': 'Tweets from {}'.format(location)}}
+        return figure
 
     app.run_server()
 
