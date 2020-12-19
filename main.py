@@ -4,9 +4,11 @@ import math
 import json
 from textblob import TextBlob
 import map
+import dash_app
 import time
 import dataset
 from sqlalchemy.sql import text
+from datetime import datetime
 
 TWITTER_APP_KEY = "2iOmsupNqQn32DJ1EJuo1sYQz"  # Authentication codes for Twitter API
 TWITTER_APP_SECRET = "0kDqCC3yRqbLEQtIThXe0nwoHS9UXhoLht7R0c2VHiSt2szHPw"
@@ -70,9 +72,9 @@ def add_to_table(tweet, region):  # Parse the tweet JSON and insert it into the 
     text = parsed['full_text']
     sentiment = TextBlob(text).sentiment
     polarity = sentiment.polarity  # how positive or negative the tweet is
-    subjectivity = sentiment.subjectivity  # subjective sentences generally refer to personal opinion,
-    # emotion or judgment whereas objective refers to factual information
-    created_at = parsed['created_at']  # Date tweet was created
+    subjectivity = sentiment.subjectivity  # subjective sentences generally refer to personal opinion, emotion or
+    # judgment whereas objective refers to factual information
+    created_at = datetime.strptime(parsed['created_at'],'%a %b %d %H:%M:%S +0000 %Y') # Date tweet was created
     retweet_count = parsed['retweet_count']  # How many retweets
     favorite_count = parsed['favorite_count']  # How many favourites
     user_id = parsed['user']['id_str']  # Link tweet to its user
@@ -91,7 +93,7 @@ def add_to_table(tweet, region):  # Parse the tweet JSON and insert it into the 
     user_created_at = user['created_at']  # Date when account was created
 
     try:
-        sql_cursor.execute("""INSERT INTO Tweets VALUES (?,?,?,?,?,?,?,?,?)""",
+        sql_cursor.execute("""INSERT INTO tweets VALUES (?,?,?,?,?,?,?,?,?)""",
                            (id_str,
                             text,
                             polarity,
@@ -107,7 +109,7 @@ def add_to_table(tweet, region):  # Parse the tweet JSON and insert it into the 
         pass
 
     try:
-        sql_cursor.execute("""INSERT INTO Users VALUES (?,?,?,?,?,?,?,?,?,?)""",
+        sql_cursor.execute("""INSERT INTO users VALUES (?,?,?,?,?,?,?,?,?,?)""",
                            (user_id_str,
                             user_name,
                             user_location,
@@ -123,46 +125,6 @@ def add_to_table(tweet, region):  # Parse the tweet JSON and insert it into the 
         print('Error, repeated user')
         pass
 
-
 get_data()
-
-# tweets = get_tweets_for_region(52.68778992, -1.3779, 2083786961.39186)
-# for tweet in tweets:
-#     json_str = json.dumps(tweet._json)
-#     parsed = json.loads(json_str)
-#     text = parsed['full_text']
-#     user = parsed['user']
-#     user_location = user['location']
-#     print(text)
-#     print(user_location)
-#     print()
-
-# tweets = get_tweets_for_region(52.68778992, -1.3779, 2083786961.39186)
-# tweets.next()
-# firstTweet = tweets.next()
-# json_str = json.dumps(firstTweet._json)
-# parsed = json.loads(json_str)
-# print(parsed['full_text'])
-# add_to_table(firstTweet, 'Oxfordshire')
-
-# tweets = sql_cursor.execute("""SELECT Tweets.text, Users.user_name
-#                       FROM Tweets, Users
-#                       WHERE Tweets.user_id = Users.user_id
-#                       AND Tweets.polarity < -0.5""").fetchall()
-# for tweet in tweets:
-#     print(tweet[0])
-#     print(tweet[1])
-#     print()
-# all_regions = sql_cursor.execute("""SELECT name, latitude, longitude, area
-#                                 FROM Regions""").fetchall()
-# for region in all_regions:
-#     name = region[0]
-#     area = region[3]
-#     radius = math.sqrt(area / math.pi) / 1000
-#     print(radius)
-#     sql_cursor.execute("""UPDATE Regions
-#                       SET radius = ?
-#                       WHERE name = ?""", (radius, name))
-#     conn.commit()
-# map.make_map()
+dash_app.run_dash_app()
 conn.close()
