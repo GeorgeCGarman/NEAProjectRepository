@@ -3,7 +3,6 @@ import dash_core_components as dcc
 import dash_html_components as html
 import plotly.graph_objs as go
 from dash.dependencies import Input, Output
-
 import sqlite3
 import json
 import pandas as pd
@@ -24,11 +23,7 @@ def run_dash_app():
                                        "WHERE region_name='{}' ".format(region_name), con)  # Get the text, polarity,
         # and date created of all tweets in this region
 
-        def to_datetime(dtime):
-            return datetime.strptime(dtime, '%a %b %d %H:%M:%S +0000 %Y')  # Converts Twitter time to a date in the
-            # form yyyy-mm-dd hh:mm:ss
-
-        scatter_df['created_at'] = scatter_df['created_at'].apply(to_datetime)
+        #scatter_df['created_at'] = scatter_df['created_at'].apply(to_datetime)
         data = go.Scatter(x=scatter_df['created_at'], y=scatter_df['polarity'],
                           mode='markers', hoverinfo='none', text=scatter_df['text'])
         return data
@@ -41,14 +36,14 @@ def run_dash_app():
             # sub-region
             region_name = feature['id']
             overall_sent = cursor.execute("""SELECT SUM(polarity)
-                                            FROM tweets
+                                            FROM Tweets
                                             WHERE region_name = '{}'""".format(region_name)).fetchall()[0]
 
             if overall_sent is None:
                 overall_sent = 0.0
             d['region_name'].append(region_name)
             d['overall_sent'].append(overall_sent)
-            count+=1
+            count += 1
 
         df = pd.DataFrame(data=d)  # df holds the overall sentiment polarity for each sub-region
         max_overall_sent = max(map(abs, df['overall_sent']))
@@ -72,12 +67,13 @@ def run_dash_app():
 
     map_fig = go.Figure(my_map)
     map_fig.update_layout(mapbox_style="carto-positron",
-                      mapbox_zoom=4, mapbox_center={"lat": 55.3781, "lon": -3.4360})
+                      mapbox_zoom=4, mapbox_center={"lat": 55.3781, "lon": -3.4360}, height=700)
 
     app.layout = html.Div(className='row',  # creates html div with the map and the graph side-by-side.
                           style={'display': 'flex'},
-                          children=[html.Div(dcc.Graph(id='map_fig', figure=map_fig)),
-                                    html.Div([dcc.Graph(id='my_scatter')])])
+                          children=[html.Div(dcc.Graph(id='map_fig', figure=map_fig, config={'displayModeBar': False})),
+                                    html.Div([dcc.Graph(id='my_scatter', config={'displayModeBar': False}),
+                                              html.Div(html.H1(id='tweet text'))])])
 
     @app.callback(Output('my_scatter', 'figure'),
                   [Input('map_fig', 'clickData')])
@@ -87,7 +83,12 @@ def run_dash_app():
         new_fig = {'data': [data], 'layout': {'title': 'Tweets from {}'.format(location)}}
         return new_fig # Returns a new figure
 
+    @app.callback(Output('tweet text', 'children'),
+                  [Input('my_scatter', 'hoverData')])
+    def callback_hover(hoverData):
+        text = hoverData['points'][0]['text']
+        print(json.dumps(text))
+        return json.dumps(text)
+
     app.run_server()
 
-
-run_dash_app()
