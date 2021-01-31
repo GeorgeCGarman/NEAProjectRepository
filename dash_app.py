@@ -24,8 +24,10 @@ def run_dash_app():
         # and date created of all tweets in this region
 
         #scatter_df['created_at'] = scatter_df['created_at'].apply(to_datetime)
+        scatter_df['text'] = scatter_df['text'].str.wrap(30)
+        scatter_df['text'] = scatter_df['text'].apply(lambda x: x.replace('\n', '<br>'))
         data = go.Scatter(x=scatter_df['created_at'], y=scatter_df['polarity'],
-                          mode='markers', hoverinfo='none', text=scatter_df['text'])
+                          mode='markers', hoverinfo='text', text=scatter_df['text'])
         return data
 
     def get_map_df():
@@ -72,23 +74,24 @@ def run_dash_app():
     app.layout = html.Div(className='row',  # creates html div with the map and the graph side-by-side.
                           style={'display': 'flex'},
                           children=[html.Div(dcc.Graph(id='map_fig', figure=map_fig, config={'displayModeBar': False})),
-                                    html.Div([dcc.Graph(id='my_scatter', config={'displayModeBar': False}),
-                                              html.Div(html.H1(id='tweet text'))])])
+                                    html.Div([dcc.Graph(id='my_scatter', config={'displayModeBar': False})],
+                                            style={'width':'50%', 'float':'right'})])
+    # html.Div(html.Pre(id='hover-data', style={'paddingTop': 35}),
+    #          style={'width': '30%'})
 
     @app.callback(Output('my_scatter', 'figure'),
                   [Input('map_fig', 'clickData')])
     def update_graph(clickData):  # Gets called whenever a region on the map is clicked
         location = clickData['points'][0]['location']  # Get the name of the region
         data = get_scatter_data(location)  # Get the data for that region
-        new_fig = {'data': [data], 'layout': {'title': 'Tweets from {}'.format(location)}}
+        new_fig = {'data': [data], 'layout':go.Layout(title='Tweets from {}'.format(location), hovermode='closest')}
         return new_fig # Returns a new figure
 
-    @app.callback(Output('tweet text', 'children'),
+    @app.callback(Output('hover-data', 'children'),
                   [Input('my_scatter', 'hoverData')])
     def callback_hover(hoverData):
-        text = hoverData['points'][0]['text']
-        print(json.dumps(text))
-        return json.dumps(text)
+        text = json.dumps(hoverData['points'][0]['text'])
+        return text
 
     app.run_server()
 

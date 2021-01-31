@@ -12,27 +12,20 @@ week = day % 7
 all_regions = sql_cursor.execute("""SELECT name
                                     FROM Regions""").fetchall()
 conn.row_factory = lambda cursor, row: row
-for region in all_regions:
-    min_date =
-    df = pd.read_sql_query("""SELECT AVG(polarity) as avg_polarity, operator_name
-                                    FROM Tweets, TweetOperator
-                                    WHERE Tweets.tweet_id=TweetOperator.tweet_id 
-                                          AND Tweets.region_name="{}"
-                                          AND Tweets.created_at BETWEEN
-                                    GROUP BY TweetOperator.operator_name""".format(region), conn)
-    for column, row in df.iterrows():
-        operator_name = row['operator_name']
-        avg_polarity = row['avg_polarity']
-        sql_cursor.execute("""INSERT INTO Weeks VALUES (?,?,?,?,?)""",
-                           (month,
-                            year,
-                            region,
-                            operator_name,
-                            avg_polarity))
-        conn.commit()
-    # result_list = list(sql_cursor.fetchall())
-    # print(result_list)
-    # for x in results:
-    #     print(x)
 
+def week(mydate):
+    mydate = datetime.strptime(mydate, '%Y-%m-%d %H:%M:%S')
+    return str(mydate.year) + '-' + str(mydate.month) + '-' + str(mydate.day % 7)
+
+df = pd.read_sql_query("""SELECT region_name, created_at, operator_name, polarity 
+                          FROM Tweets, TweetOperator
+                          WHERE Tweets.tweet_id=TweetOperator.tweet_id""", conn)
+
+df['week'] = df['created_at'].apply(week)
+grouped = df.groupby(['region_name', 'week', 'operator_name'])
+agged = grouped.agg(overall_sent=pd.NamedAgg(column="polarity", aggfunc=sum)).reset_index()
+max_overall_sent = max(map(abs, agged['overall_sent']))
+agged['overall_sent'] = agged['overall_sent'] /  max_overall_sent
+print(agged)
+#print(agged.loc[agged['overall_sent'] == 1])
 

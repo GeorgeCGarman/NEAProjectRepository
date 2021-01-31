@@ -69,7 +69,7 @@ def add_to_table(tweet, region):  # Parse the tweet JSON and insert it into the 
     text = parsed['full_text']
     sentiment = TextBlob(text).sentiment
     polarity = round(sentiment.polarity, 3)  # how positive or negative the tweet is
-    subjectivity = sentiment.subjectivity  # subjective sentences generally refer to personal opinion, emotion or
+    subjectivity = round(sentiment.subjectivity, 3)  # subjective sentences generally refer to personal opinion, emotion or
     # judgment whereas objective refers to factual information
     created_at = datetime.strptime(parsed['created_at'],'%a %b %d %H:%M:%S +0000 %Y') # Date tweet was created
     retweet_count = parsed['retweet_count']  # How many retweets
@@ -91,7 +91,7 @@ def add_to_table(tweet, region):  # Parse the tweet JSON and insert it into the 
             return
 
     if parsed['coordinates'] is not None:
-        coords = parsed['coordinates']['coordinates']  # coordinates of the tweet (if given)
+        coords = str(parsed['coordinates']['coordinates'])  # coordinates of the tweet (if given)
         try:
             sql_cursor.execute("""INSERT INTO Coordinates VALUES (?,?)""",
                                (tweet_id,
@@ -157,7 +157,10 @@ def add_to_table(tweet, region):  # Parse the tweet JSON and insert it into the 
         print('Error, repeated user')
         pass
 
+# def condense_db():
+#
+#
 if __name__ == "__main__":
     get_data()
-    #  dash_app.run_dash_app()
+    dash_app.run_dash_app()
     conn.close()
