@@ -4,6 +4,7 @@ import json
 from textblob import TextBlob
 import dash_app
 from datetime import datetime
+import pandas as pd
 
 TWITTER_APP_KEY = "2iOmsupNqQn32DJ1EJuo1sYQz"  # Authentication codes for Twitter API
 TWITTER_APP_SECRET = "0kDqCC3yRqbLEQtIThXe0nwoHS9UXhoLht7R0c2VHiSt2szHPw"
@@ -157,10 +158,38 @@ def add_to_table(tweet, region):  # Parse the tweet JSON and insert it into the 
         print('Error, repeated user')
         pass
 
-# def condense_db():
-#
-#
+def condense_db():
+    def to_week(mydate):
+        mydate = datetime.strptime(mydate, '%Y-%m-%d %H:%M:%S')
+        return str(mydate.year) + '-' + str(mydate.month) + '-' + str(mydate.day % 7)
+    conn.row_factory = lambda cursor, row: row[0]  # c'est necessaire?
+    all_regions = sql_cursor.execute("""SELECT name
+                                        FROM Regions""").fetchall()
+    conn.row_factory = lambda cursor, row: row
+    year = datetime.now().year
+    month = datetime.now().month
+    day = datetime.now().day
+    week = day % 7
+
+    df = pd.read_sql_query("""SELECT region_name, created_at, operator_name, polarity 
+                              FROM Tweets, TweetOperator
+                              WHERE Tweets.tweet_id=TweetOperator.tweet_id""", conn)
+
+    df['week'] = df['created_at'].apply(to_week)
+    grouped = df.groupby(['region_name', 'week', 'operator_name'])
+    agged = grouped\
+        .agg(tweet_count=('polarity', 'count'), overall_sent=('polarity', 'sum'))\
+        .reset_index()
+    # agged = grouped.agg(overall_sent=pd.NamedAgg(column="polarity", aggfunc=sum)
+    #                     count=pd.NamedAgg(column='')).reset_index()
+    # df2 = (df.groupby(['region_name', 'week', 'operator_name'])['polarity'].)
+
+    max_overall_sent = max(map(abs, agged['overall_sent']))
+    agged['overall_sent'] = agged['overall_sent'] / max_overall_sent
+    print(agged)
+
 if __name__ == "__main__":
-    get_data()
-    dash_app.run_dash_app()
+    # get_data()
+    # dash_app.run_dash_app()
+    condense_db()
     conn.close()
