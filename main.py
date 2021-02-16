@@ -5,11 +5,17 @@ from textblob import TextBlob
 import dash_app
 from datetime import datetime
 import pandas as pd
+from sqlalchemy import create_engine
+engine = create_engine('sqlite:///twitterDB.db', echo=True)
+sqlite_connection = engine.connect()
 
 TWITTER_APP_KEY = "2iOmsupNqQn32DJ1EJuo1sYQz"  # Authentication codes for Twitter API
 TWITTER_APP_SECRET = "0kDqCC3yRqbLEQtIThXe0nwoHS9UXhoLht7R0c2VHiSt2szHPw"
 
 TWITTER_ACCOUNTS = ["@VodafoneUK","@ThreeUK", "@O2", "@EE"]
+COLOURS = ["#d62728", "#000000", "#1f77b4", "#bcbd22"]
+# COLOURS = ["#E60000", "#000000", "blue", "yellow"]
+# COLOURS = ["red", "black", "lightblue", "yellow"]
 
 auth = tweepy.AppAuthHandler(TWITTER_APP_KEY, TWITTER_APP_SECRET)  # Authentication for use of Twitter API.
 # Keys provided when creating a Twitter Application
@@ -17,10 +23,10 @@ auth = tweepy.AppAuthHandler(TWITTER_APP_KEY, TWITTER_APP_SECRET)  # Authenticat
 api = tweepy.API(auth)
 
 conn = sqlite3.connect('twitterDB.db')  # Connect to sqlite3 database
-sql_cursor = conn.cursor()
+cur = conn.cursor()
 
 def get_data():  # Loop over each county (region) and request for tweets within it
-    all_regions = sql_cursor.execute("""SELECT name, latitude, longitude, radius
+    all_regions = cur.execute("""SELECT name, latitude, longitude, radius
                                 FROM Regions""").fetchall()
 
     # Get the relevant information from every county (named as 'regions') in the database
@@ -81,8 +87,8 @@ def add_to_table(tweet, region):  # Parse the tweet JSON and insert it into the 
         place_type = place['place_type']
         country = place['country']
         try:
-            sql_cursor.execute("""INSERT INTO Place VALUES (?,?,?,?)""",
-                               (tweet_id,
+            cur.execute("""INSERT INTO Place VALUES (?,?,?,?)""",
+                        (tweet_id,
                                 full_name,
                                 place_type,
                                 country))
@@ -94,8 +100,8 @@ def add_to_table(tweet, region):  # Parse the tweet JSON and insert it into the 
     if parsed['coordinates'] is not None:
         coords = str(parsed['coordinates']['coordinates'])  # coordinates of the tweet (if given)
         try:
-            sql_cursor.execute("""INSERT INTO Coordinates VALUES (?,?)""",
-                               (tweet_id,
+            cur.execute("""INSERT INTO Coordinates VALUES (?,?)""",
+                        (tweet_id,
                                 coords))
             conn.commit()
         except sqlite3.IntegrityError:
@@ -118,16 +124,16 @@ def add_to_table(tweet, region):  # Parse the tweet JSON and insert it into the 
     for operator_name in TWITTER_ACCOUNTS:
         if operator_name in text:
             try:
-                sql_cursor.execute("""INSERT INTO TweetOperator VALUES (?,?)""",
-                                   (tweet_id, operator_name))
+                cur.execute("""INSERT INTO TweetOperator VALUES (?,?)""",
+                            (tweet_id, operator_name))
                 conn.commit()
             except sqlite3.IntegrityError:
                 print('Error, repeated tweet')
                 return
 
     try:
-        sql_cursor.execute("""INSERT INTO Tweets VALUES (?,?,?,?,?,?,?,?,?)""",
-                           (tweet_id,
+        cur.execute("""INSERT INTO Tweets VALUES (?,?,?,?,?,?,?,?,?)""",
+                    (tweet_id,
                             text,
                             polarity,
                             subjectivity,
@@ -142,8 +148,8 @@ def add_to_table(tweet, region):  # Parse the tweet JSON and insert it into the 
         return
 
     try:
-        sql_cursor.execute("""INSERT INTO Users VALUES (?,?,?,?,?,?,?,?,?,?)""",
-                           (user_id,
+        cur.execute("""INSERT INTO Users VALUES (?,?,?,?,?,?,?,?,?,?)""",
+                    (user_id,
                             user_name,
                             user_location,
                             user_description,
@@ -161,15 +167,15 @@ def add_to_table(tweet, region):  # Parse the tweet JSON and insert it into the 
 def condense_db():
     def to_week(mydate):
         mydate = datetime.strptime(mydate, '%Y-%m-%d %H:%M:%S')
-        return str(mydate.year) + '-' + str(mydate.month) + '-' + str(mydate.day % 7)
+        return str(mydate.year) + '-' + str(mydate.month) + '-' + str(mydate.day // 7)
     conn.row_factory = lambda cursor, row: row[0]  # c'est necessaire?
-    all_regions = sql_cursor.execute("""SELECT name
+    all_regions = cur.execute("""SELECT name
                                         FROM Regions""").fetchall()
     conn.row_factory = lambda cursor, row: row
     year = datetime.now().year
     month = datetime.now().month
     day = datetime.now().day
-    week = day % 7
+    week = day // 7
 
     df = pd.read_sql_query("""SELECT region_name, created_at, operator_name, polarity 
                               FROM Tweets, TweetOperator
@@ -186,10 +192,13 @@ def condense_db():
 
     max_overall_sent = max(map(abs, agged['overall_sent']))
     agged['overall_sent'] = agged['overall_sent'] / max_overall_sent
-    print(agged)
+
+    agged.to_sql('Weeks', engine, if_exists='append', index=False)
+    # cur.execute("""INSERT INTO Weeks VALUES (?,?,?,?,?)""",
+    #             (df['week']))
 
 if __name__ == "__main__":
-    # get_data()
-    # dash_app.run_dash_app()
+    get_data()
+    dash_app.run_dash_app()
     condense_db()
     conn.close()
