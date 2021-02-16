@@ -1,17 +1,21 @@
 import tweepy
 import sqlite3
-import math
 import json
 from textblob import TextBlob
-import map
 import dash_app
-import time
-import dataset
-from sqlalchemy.sql import text
 from datetime import datetime
+import pandas as pd
+from sqlalchemy import create_engine
+engine = create_engine('sqlite:///twitterDB.db', echo=True)
+sqlite_connection = engine.connect()
 
 TWITTER_APP_KEY = "2iOmsupNqQn32DJ1EJuo1sYQz"  # Authentication codes for Twitter API
 TWITTER_APP_SECRET = "0kDqCC3yRqbLEQtIThXe0nwoHS9UXhoLht7R0c2VHiSt2szHPw"
+
+TWITTER_ACCOUNTS = ["@VodafoneUK","@ThreeUK", "@O2", "@EE"]
+COLOURS = ["#d62728", "#000000", "#1f77b4", "#bcbd22"]
+# COLOURS = ["#E60000", "#000000", "blue", "yellow"]
+# COLOURS = ["red", "black", "lightblue", "yellow"]
 
 auth = tweepy.AppAuthHandler(TWITTER_APP_KEY, TWITTER_APP_SECRET)  # Authentication for use of Twitter API.
 # Keys provided when creating a Twitter Application
@@ -19,11 +23,10 @@ auth = tweepy.AppAuthHandler(TWITTER_APP_KEY, TWITTER_APP_SECRET)  # Authenticat
 api = tweepy.API(auth)
 
 conn = sqlite3.connect('twitterDB.db')  # Connect to sqlite3 database
-sql_cursor = conn.cursor()
-
+cur = conn.cursor()
 
 def get_data():  # Loop over each county (region) and request for tweets within it
-    all_regions = sql_cursor.execute("""SELECT name, latitude, longitude, radius
+    all_regions = cur.execute("""SELECT name, latitude, longitude, radius
                                 FROM Regions""").fetchall()
 
     # Get the relevant information from every county (named as 'regions') in the database
@@ -53,8 +56,9 @@ def get_data():  # Loop over each county (region) and request for tweets within 
 
 def get_tweets_for_region(lat, long, radius):  # Makes the request to the API for tweets within a specific area
     geocode = str(str(lat) + "," + str(long) + "," + str(radius) + "km")
+    query = " OR ".join(TWITTER_ACCOUNTS) + " -filter:retweets"
     public_tweets = tweepy.Cursor(api.search,
-                                  q='vodafone -filter:retweets',
+                                  q=query,
                                   geocode=geocode,
                                   tweet_mode='extended').items()
     # searches for tweets with the keyword vodafone in their text,
@@ -68,20 +72,45 @@ def add_to_table(tweet, region):  # Parse the tweet JSON and insert it into the 
     parsed = json.loads(json_str)
 
     # tweet attributes
-    id_str = parsed['id']
+    tweet_id = parsed['id']
     text = parsed['full_text']
     sentiment = TextBlob(text).sentiment
-    polarity = sentiment.polarity  # how positive or negative the tweet is
-    subjectivity = sentiment.subjectivity  # subjective sentences generally refer to personal opinion, emotion or
+    polarity = round(sentiment.polarity, 3)  # how positive or negative the tweet is
+    subjectivity = round(sentiment.subjectivity, 3)  # subjective sentences generally refer to personal opinion, emotion or
     # judgment whereas objective refers to factual information
     created_at = datetime.strptime(parsed['created_at'],'%a %b %d %H:%M:%S +0000 %Y') # Date tweet was created
     retweet_count = parsed['retweet_count']  # How many retweets
     favorite_count = parsed['favorite_count']  # How many favourites
-    user_id = parsed['user']['id_str']  # Link tweet to its user
+    if parsed['place'] is not None:
+        place = parsed['place']  # place of the tweet e.g. London UK
+        full_name = place['full_name']
+        place_type = place['place_type']
+        country = place['country']
+        try:
+            cur.execute("""INSERT INTO Place VALUES (?,?,?,?)""",
+                        (tweet_id,
+                                full_name,
+                                place_type,
+                                country))
+            conn.commit()
+        except sqlite3.IntegrityError:
+            print('Error, repeated tweet')
+            return
+
+    if parsed['coordinates'] is not None:
+        coords = str(parsed['coordinates']['coordinates'])  # coordinates of the tweet (if given)
+        try:
+            cur.execute("""INSERT INTO Coordinates VALUES (?,?)""",
+                        (tweet_id,
+                                coords))
+            conn.commit()
+        except sqlite3.IntegrityError:
+            print('Error, repeated tweet')
+            return
 
     # user attributes
     user = parsed['user']
-    user_id_str = user['id_str']
+    user_id = user['id_str']
     user_name = user['name']
     user_location = user['location']  # Location user gives in their profile. E.g. 'London, UK'
     user_description = user['description']  # Twitter bio
@@ -92,9 +121,19 @@ def add_to_table(tweet, region):  # Parse the tweet JSON and insert it into the 
     user_statuses_count = user['statuses_count']  # How many tweets user has made
     user_created_at = user['created_at']  # Date when account was created
 
+    for operator_name in TWITTER_ACCOUNTS:
+        if operator_name in text:
+            try:
+                cur.execute("""INSERT INTO TweetOperator VALUES (?,?)""",
+                            (tweet_id, operator_name))
+                conn.commit()
+            except sqlite3.IntegrityError:
+                print('Error, repeated tweet')
+                return
+
     try:
-        sql_cursor.execute("""INSERT INTO tweets VALUES (?,?,?,?,?,?,?,?,?)""",
-                           (id_str,
+        cur.execute("""INSERT INTO Tweets VALUES (?,?,?,?,?,?,?,?,?)""",
+                    (tweet_id,
                             text,
                             polarity,
                             subjectivity,
@@ -106,11 +145,11 @@ def add_to_table(tweet, region):  # Parse the tweet JSON and insert it into the 
         conn.commit()
     except sqlite3.IntegrityError:  # if the tweet is already in the database, discard it.
         print('Error, repeated tweet')
-        pass
+        return
 
     try:
-        sql_cursor.execute("""INSERT INTO users VALUES (?,?,?,?,?,?,?,?,?,?)""",
-                           (user_id_str,
+        cur.execute("""INSERT INTO Users VALUES (?,?,?,?,?,?,?,?,?,?)""",
+                    (user_id,
                             user_name,
                             user_location,
                             user_description,
@@ -125,6 +164,41 @@ def add_to_table(tweet, region):  # Parse the tweet JSON and insert it into the 
         print('Error, repeated user')
         pass
 
-get_data()
-dash_app.run_dash_app()
-conn.close()
+def condense_db():
+    def to_week(mydate):
+        mydate = datetime.strptime(mydate, '%Y-%m-%d %H:%M:%S')
+        return str(mydate.year) + '-' + str(mydate.month) + '-' + str(mydate.day // 7)
+    conn.row_factory = lambda cursor, row: row[0]  # c'est necessaire?
+    all_regions = cur.execute("""SELECT name
+                                        FROM Regions""").fetchall()
+    conn.row_factory = lambda cursor, row: row
+    year = datetime.now().year
+    month = datetime.now().month
+    day = datetime.now().day
+    week = day // 7
+
+    df = pd.read_sql_query("""SELECT region_name, created_at, operator_name, polarity 
+                              FROM Tweets, TweetOperator
+                              WHERE Tweets.tweet_id=TweetOperator.tweet_id""", conn)
+
+    df['week'] = df['created_at'].apply(to_week)
+    grouped = df.groupby(['region_name', 'week', 'operator_name'])
+    agged = grouped\
+        .agg(tweet_count=('polarity', 'count'), overall_sent=('polarity', 'sum'))\
+        .reset_index()
+    # agged = grouped.agg(overall_sent=pd.NamedAgg(column="polarity", aggfunc=sum)
+    #                     count=pd.NamedAgg(column='')).reset_index()
+    # df2 = (df.groupby(['region_name', 'week', 'operator_name'])['polarity'].)
+
+    max_overall_sent = max(map(abs, agged['overall_sent']))
+    agged['overall_sent'] = agged['overall_sent'] / max_overall_sent
+
+    agged.to_sql('Weeks', engine, if_exists='append', index=False)
+    # cur.execute("""INSERT INTO Weeks VALUES (?,?,?,?,?)""",
+    #             (df['week']))
+
+if __name__ == "__main__":
+    get_data()
+    dash_app.run_dash_app()
+    condense_db()
+    conn.close()
