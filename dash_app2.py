@@ -2,6 +2,7 @@ import dash
 import dash_core_components as dcc
 import dash_html_components as html
 import plotly.graph_objs as go
+import plotly as plt
 from dash.dependencies import Input, Output
 import sqlite3
 import json
@@ -102,7 +103,7 @@ def week_to_date(week):
     date = items[0]+'-'+items[1]+'-'+day
     return date
 
-def overview(app):
+def overview(app, con):
     drop_down_opt = []
     drop_down_opt.append({'label': 'All', 'value': 'All'})
     for account in TWITTER_ACCOUNTS:
@@ -114,8 +115,8 @@ def overview(app):
     agged = grouped\
             .agg(tweet_count=('overall_sent', 'count'), overall_sent=('overall_sent', 'sum'))\
             .reset_index()
-    with pd.option_context('display.max_rows', None, 'display.max_columns', None):  # more options can be specified also
-        print(agged)
+    # with pd.option_context('display.max_rows', None, 'display.max_columns', None):  # more options can be specified also
+    #     print(agged)
     max_overall_sent = max(map(abs, agged['overall_sent']))
     agged['overall_sent'] = agged['overall_sent'] /  max_overall_sent
     agged['week'] = agged['week'].apply(week_to_date)
@@ -123,7 +124,6 @@ def overview(app):
     line_fig = go.Figure()
     for name, group in agged.groupby('operator_name'):
         trace = go.Scatter(x=group['week'].tolist(), y=group['overall_sent'].tolist())
-        print(name)
         trace.name = name
         color = COLOURS[TWITTER_ACCOUNTS.index(name)]
         trace.line = dict(color=color)
@@ -131,31 +131,107 @@ def overview(app):
     line_fig.update_layout(title='Overall sentiment by week')
 
     piedf = agged.groupby('operator_name').agg(tweet_count=('tweet_count', 'sum')).reset_index()
-    print(piedf.head())
     labels = piedf['operator_name']
     values = piedf['tweet_count']
     pie_fig = go.Figure(data=go.Pie(labels=labels, values=values))
     #pie_fig.update_traces(marker=dict(colors=COLOURS))
     pie_fig.update_layout(title='Tweet share')
 
-    app.layout = html.Div([html.H1('Network Performance Tracker', style={'font-family': 'verdana'}),
+    # app.layout = html.Div([html.H1('Network Performance Tracker', style={'font-family': 'verdana'}),
+    #                        html.Div([html.Label(['Track ', dcc.Dropdown(id='network-dropdown',
+    #                                     options=drop_down_opt,
+    #                                     style={'font-family': 'verdana', 'width': '200px', 'display': 'inline-block'},
+    #                                     value='All')], style={'font-family': 'verdana'}),
+    #                                 html.Button('Get data', id='get-data-button', n_clicks=0, style={'font-family': 'verdana', 'display': 'table-cell'})],
+    #                                 style=dict(width = '30%',display = 'table')),
+    #                        dcc.Graph('line-graph', figure=line_fig),
+    #                        dcc.Graph('pie-chart', figure=pie_fig)], id='page-content')
+    layout = html.Div([html.H1('Network Performance Tracker', style={'font-family': 'verdana'}),
                            html.Div([html.Label(['Track ', dcc.Dropdown(id='network-dropdown',
                                         options=drop_down_opt,
                                         style={'font-family': 'verdana', 'width': '200px', 'display': 'inline-block'},
-                                        value={'label': 'All', 'value': 'All'})], style={'font-family': 'verdana'}),
+                                        value='All')], style={'font-family': 'verdana'}),
                                     html.Button('Get data', id='get-data-button', n_clicks=0, style={'font-family': 'verdana', 'display': 'table-cell'})],
                                     style=dict(width = '30%',display = 'table')),
                            dcc.Graph('line-graph', figure=line_fig),
                            dcc.Graph('pie-chart', figure=pie_fig)], id='page-content')
+    con.close()
+    return layout
     #fig.update_layout(title_font_family="Open Sans")
+    #{'label': 'All', 'value': 'All'})
+
+def geospatial(app, operator_name, con):
+    def get_map_df():
+        d = {'region_name': [], 'overall_sent': []}
+        count = 0
+        for feature in uk_regions['features']:  # Loops through geojson, which is a collection of shapes called 'features'
+            feature['id'] = feature['properties']['NAME_2']  # Gives this feature a new id field set to the name of the
+            # sub-region
+            region_name = feature['id']
+            overall_sent = 0.0
+            d['region_name'].append(region_name)
+            d['overall_sent'].append(overall_sent)
+            count += 1
+        df = pd.DataFrame(data=d)
+        return df
+
+    map_df = get_map_df()
+    my_map = go.Choroplethmapbox(  # Creates the map.
+        geojson=uk_regions,
+        locations=map_df['region_name'],
+        # The locations parameter takes the ids of the features in the geojson that will be rendered
+        z=map_df['overall_sent'],  # takes in the color values for the regions
+        zmin=-1,
+        zmax=1,
+        colorscale=["red", "white", "blue"],
+        marker_line_width=0.5,
+    )
+    # con.row_factory = lambda cursor, row: row
+    print('name:',operator_name)
+    df = pd.read_sql("SELECT * FROM Weeks WHERE operator_name='{}'".format(operator_name), con)
+    grouped = df.groupby(['region_name'])
+    # agged = grouped.agg(overall_sent=pd.NamedAgg(column='overall_sent', aggfunc=sum)).reset_index()
+    agged = grouped \
+        .agg(tweet_count=('overall_sent', 'count'), overall_sent=('overall_sent', 'sum')) \
+        .reset_index()
+
+    max_overall_sent = max(map(abs, agged['overall_sent']))
+    agged['overall_sent'] = agged['overall_sent'] / max_overall_sent
+    agged['rank'] = agged['overall_sent'].rank(ascending = 0).astype(int)
+    # with pd.option_context('display.max_rows', None, 'display.max_columns', None):  # more options can be specified also
+    #     print(agged)
+
+    agged = agged.sort_values(by=['rank'])
+    cols = ['rank', 'region_name', 'overall_sent']
+    df = agged[cols]
+    rank_table = go.Figure(data=[go.Table(
+        header=dict(values=['Rank', 'County', 'Overall sentiment'],
+                    fill_color='paleturquoise',
+                    align='left'),
+        cells=dict(values=[df['rank'], df['region_name'], df['overall_sent']],
+                   fill_color='lavender',
+                   align='left'))
+    ])
+    con.close()
+    return dcc.Graph('rank-table', figure=rank_table)
+    #app.layout = html.Div(dcc.Graph('rank-table', figure=rank_table))
+
 
 app = dash.Dash()
-overview(app)
+# geospatial(app, '@EE')
+app.layout = overview(app, con)
+
+@app.callback(Output('page-content', 'children'), [Input('network-dropdown', 'value')])
+def update_page(value):
+    con = sqlite3.connect('twitterDB.db')
+    if value == 'All':
+        return overview(app, con)
+    else:
+        return geospatial(app, value, con)
+
 app.run_server()
 
 
 
-# @app.callback(Output('line-graph', 'figure'),
-#               Input('network-dropdown', 'value'))
-# def update_line_graph(value):
-#
+
+
