@@ -2,7 +2,7 @@ import dash
 import dash_core_components as dcc
 import dash_html_components as html
 import plotly.graph_objs as go
-from dash.dependencies import Input, Output
+from dash.dependencies import Input, Output, State
 
 import sqlite3
 import json
@@ -33,15 +33,16 @@ def main_layout():
     for account in TWITTER_ACCOUNTS:
         drop_down_opt.append({'label': account, 'value': account})
 
-    layout = html.Div([html.H1('Network Performance Tracker', style={'font-family': 'verdana'}),
-                       html.Div([html.Label(['Track ', dcc.Dropdown(id='network-dropdown',
-                                                                    options=drop_down_opt,
-                                                                    style={'font-family': 'verdana', 'width': '200px',
-                                                                           'display': 'inline-block'},
-                                                                    value='All')], style={'font-family': 'verdana'}),
-                                 html.Button('Get data', id='get-data-button', n_clicks=0,
-                                             style={'font-family': 'verdana', 'display': 'table-cell'})],
-                                style=dict(width='30%', display='table'))])
+    layout = [html.H1('Network Performance Tracker', style={'font-family': 'verdana'}),
+              html.Div([html.Label(['Track ', dcc.Dropdown(id='network-dropdown',
+                                                           options=drop_down_opt,
+                                                           style={'font-family': 'verdana', 'width': '200px',
+                                                                  'display': 'inline-block'},
+                                                           value='All')],
+                                   style={'font-family': 'verdana'}),
+                        html.Button('Get data', id='get-data-button', n_clicks=0,
+                                    style={'font-family': 'verdana', 'display': 'table-cell'})],
+                       style=dict(width='30%', display='table'))]
 
     return layout
 
@@ -77,12 +78,164 @@ def overview():
 
     # layout describes the layout of the web-page.
     # make content div and have the default stuff e.g. title *
-    layout = html.Div(id='page-content', children=[dcc.Graph('line-graph', figure=line_fig),
-                       dcc.Graph('pie-chart', figure=pie_fig)])
+    layout = [dcc.Graph('line-graph', figure=line_fig),
+              dcc.Graph('pie-chart', figure=pie_fig)]
     return layout
 
-app = dash.Dash()
-app.layout = html.Div([main_layout(), overview()])
-app.run_server()
 
-overview()
+def account_view(operator_name):
+    # count = 0
+    # for feature in uk_regions['features']:  # Loops through geojson, which is a collection of shapes called 'features'
+    #     feature['id'] = feature['properties']['NAME_2']  # Gives this feature a new id field set to the name of the
+    #     # sub-region
+    #     region_name = feature['id']
+    #
+    # con = sqlite3.connect("twitterDB.db")
+    # map_df = pd.read_sql("""SELECT region_name, polarity
+    #                     FROM Tweets, TweetOperator
+    #                     WHERE Tweets.tweet_id = TweetOperator.tweet_id
+    #                           AND TweetOperator.operator_name = '{}'""".format(operator_name), con)
+    # con.close()
+    # map_df = map_df.groupby(['region_name', 'polarity']).agg(overall_sent=('polarity', 'sum')).reset_index()  # *
+    # max_overall_sent = max(map(abs, map_df['overall_sent']))
+    # map_df['overall_sent'] = map_df['overall_sent'] / max_overall_sent
+    d = {'region_name': [], 'overall_sent': []} # * code good?
+    count = 0
+    con = sqlite3.connect("twitterDB.db")
+    con.row_factory = lambda cursor, row: row[0]
+    cur = con.cursor()
+    for feature in uk_regions['features']:  # Loops through geojson, which is a collection of shapes called 'features'
+        feature['id'] = feature['properties']['NAME_2']  # Gives this feature a new id field set to the name of the
+        # sub-region
+        region_name = feature['id']
+        overall_sent = cur.execute("""SELECT SUM(polarity)
+                                                FROM Tweets, TweetOperator
+                                                WHERE Tweets.tweet_id = TweetOperator.tweet_id
+                                                    AND Tweets.region_name = '{}' 
+                                                    AND TweetOperator.operator_name = '{}'""".format(region_name, operator_name)).fetchall()[0]
+
+        if overall_sent is None:
+            overall_sent = 0.0
+        d['region_name'].append(region_name)
+        d['overall_sent'].append(overall_sent)
+        count += 1
+
+    map_df = pd.DataFrame(data=d)  # df holds the overall sentiment polarity for each sub-region
+    max_overall_sent = max(map(abs, map_df['overall_sent']))
+    map_df['overall_sent'] = map_df['overall_sent'] / max_overall_sent  # scale all overall sents down so that the largest
+    # one (positive or negative) = 1
+
+    map_fig = go.Figure(data=go.Choroplethmapbox(geojson=uk_regions,  # Creating the map figure
+                                                 locations=map_df['region_name'],
+                                                 # The locations property takes the ids of the features in the geojson that will be
+                                                 # rendered
+                                                 z=map_df['overall_sent'],  # takes in the color values for the regions
+                                                 zmin=-1,
+                                                 zmax=1,
+                                                 colorscale=["red", "white", "blue"],
+                                                 marker_line_width=0.5))
+    map_fig.update_layout(mapbox_style="carto-positron",
+                          mapbox_zoom=4, mapbox_center={"lat": 55.3781, "lon": -3.4360})
+
+
+    # df = pd.read_sql("SELECT * FROM Weeks WHERE operator_name='{}'".format(operator_name), con)
+    # con.close()
+    # df = df.groupby(['region_name'])
+    # df = df.agg(tweet_count=('overall_sent', 'count'), overall_sent=('overall_sent', 'sum')) \
+    #     .reset_index()
+    # max_overall_sent = max(map(abs, df['overall_sent']))
+    # df['overall_sent'] = df['overall_sent'] / max_overall_sent
+    # df['rank'] = df['overall_sent'].rank(ascending=0).astype(int)
+    #
+    # df = df.sort_values(by=['rank'])
+    # cols = ['rank', 'region_name', 'overall_sent']
+    # df = df[cols]
+    # rank_table = go.Figure(data=[go.Table(
+    #     header=dict(values=['Rank', 'County', 'Overall sentiment'],
+    #                 fill_color='paleturquoise',
+    #                 align='left'),
+    #     cells=dict(values=[df['rank'], df['region_name'], df['overall_sent']],
+    #                fill_color='lavender',
+    #                align='left'))
+    # ])
+    # con.close()
+
+    rank_table = create_rank_table(operator_name)
+    layout = html.Div(className='row',
+                      style={'display': 'flex', 'height': '80vh'},
+                      children=[dcc.Graph('map', figure=map_fig),
+                                html.Div(id='detail', children=dcc.Graph('rank-table', figure=rank_table))])
+    return layout
+
+def create_rank_table(operator_name):
+    con = sqlite3.connect("twitterDB.db")
+    df = pd.read_sql("SELECT * FROM Weeks WHERE operator_name='{}'".format(operator_name), con)
+    con.close()
+    df = df.groupby(['region_name'])
+    df = df.agg(tweet_count=('overall_sent', 'count'), overall_sent=('overall_sent', 'sum')) \
+        .reset_index()
+    max_overall_sent = max(map(abs, df['overall_sent']))
+    df['overall_sent'] = df['overall_sent'] / max_overall_sent
+    df['rank'] = df['overall_sent'].rank(ascending=0).astype(int)
+
+    df = df.sort_values(by=['rank'])
+    cols = ['rank', 'region_name', 'overall_sent']
+    df = df[cols]
+    rank_table = go.Figure(data=[go.Table(
+        header=dict(values=['Rank', 'County', 'Overall sentiment'],
+                    fill_color='paleturquoise',
+                    align='left'),
+        cells=dict(values=[df['rank'], df['region_name'], df['overall_sent']],
+                   fill_color='lavender',
+                   align='left'))
+    ])
+    con.close()
+    layout = [dcc.Graph('rank-table', figure=rank_table)]  # *
+    return layout
+
+def create_scatter(region_name, operator_name):
+    con = sqlite3.connect("twitterDB.db")
+    scatter_df = pd.read_sql_query("SELECT text, polarity, created_at "
+                                   "FROM Tweets, TweetOperator "
+                                   "WHERE Tweets.tweet_id = TweetOperator.tweet_id"
+                                   "      AND Tweets.region_name='{}' "
+                                   "      AND TweetOperator.operator_name='{}'".format(region_name, operator_name),
+                                   con)  # Get the text, polarity,
+    # and date created of all tweets in this region
+    # scatter_df['created_at'] = scatter_df['created_at'].apply(to_datetime)
+    scatter_df['text'] = scatter_df['text'].str.wrap(30)
+    scatter_df['text'] = scatter_df['text'].apply(lambda x: x.replace('\n', '<br>'))
+    scatter_fig = go.Figure(go.Scatter(x=scatter_df['created_at'], y=scatter_df['polarity'],
+                                       mode='markers', hoverinfo='text', text=scatter_df['text']))
+    return scatter_fig
+
+app = dash.Dash()
+
+app.layout = html.Div(children=[html.Div(id='main-layout', children=main_layout()),
+                                html.Div(id='page-content', children=overview())])
+
+@app.callback(Output('detail', 'children'),
+              [Input('map', 'clickData')],
+              [State('network-dropdown', 'value')])
+def update_graph(clickData, value):  # Gets called whenever a region on the map is clicked
+    print(clickData)
+    operator_name = value
+    if clickData == None:
+        return create_rank_table(operator_name)
+    region_name = clickData['points'][0]['location']  # Get the name of the region
+    print(region_name)
+    print(operator_name)
+    scatter_fig = create_scatter(region_name, operator_name)
+    layout = html.Div(dcc.Graph('scatter', figure=scatter_fig))
+    return layout # Returns a new figure
+
+@app.callback(Output('page-content', 'children'),
+              [Input('network-dropdown', 'value')])
+def update_page(value):
+    con = sqlite3.connect('twitterDB.db')
+    if value == 'All':
+        return overview()
+    else:
+        return account_view(value)
+
+app.run_server()
