@@ -208,4 +208,11 @@ def update_page(value):
     else:
         return account_view(value)
 
+@app.callback(Output('page-content', 'children'),
+              [Input('get-data-button', 'n_clicks')])
+def get_data():
+    main.get_data()
+    main.condense_db()
+    return overview()
+
 app.run_server()

@@ -3,7 +3,7 @@ import sqlite3
 import json
 from textblob import TextBlob
 import dash_app
-from datetime import datetime
+from datetime import datetime, timedelta
 import pandas as pd
 from sqlalchemy import create_engine
 engine = create_engine('sqlite:///twitterDB.db', echo=True)
@@ -165,10 +165,9 @@ def add_to_table(tweet, region):  # Parse the tweet JSON and insert it into the 
         pass
 
 def condense_db():
-    def to_week(mydate):
-        mydate = datetime.strptime(mydate, '%Y-%m-%d %H:%M:%S')
-        return str(mydate.year) + '-' + str(mydate.month) + '-' + str(mydate.day // 7)
-    conn.row_factory = lambda cursor, row: row[0]  # c'est necessaire?
+    def date_to_week(date):
+        return str(date.year) + '-' + str(date.month) + '-' + str(date.day // 7)
+    conn.row_factory = lambda cursor, row: row[0]  # necessary?
     all_regions = cur.execute("""SELECT name
                                         FROM Regions""").fetchall()
     conn.row_factory = lambda cursor, row: row
@@ -180,8 +179,15 @@ def condense_db():
     df = pd.read_sql_query("""SELECT region_name, created_at, operator_name, polarity 
                               FROM Tweets, TweetOperator
                               WHERE Tweets.tweet_id=TweetOperator.tweet_id""", conn)
+    present = datetime.now()
 
-    df['week'] = df['created_at'].apply(to_week)
+    max_date = datetime.strptime(max(df['created_at']), '%Y-%m-%d %H:%M:%S')
+    max_date = max_date - timedelta(days=7)
+    min_date = datetime.strptime(min(df['created_at']), '%Y-%m-%d %H:%M:%S')
+    df['created_at'] = pd.to_datetime(df['created_at'])
+    df = df[df['created_at'] < max_date]
+    print(df.head())
+    df['week'] = df['created_at'].apply(date_to_week)
     grouped = df.groupby(['region_name', 'week', 'operator_name'])
     agged = grouped\
         .agg(tweet_count=('polarity', 'count'), overall_sent=('polarity', 'sum'))\
@@ -192,13 +198,14 @@ def condense_db():
 
     max_overall_sent = max(map(abs, agged['overall_sent']))
     agged['overall_sent'] = agged['overall_sent'] / max_overall_sent
-
+    print(agged.head())
     agged.to_sql('Weeks', engine, if_exists='append', index=False)
+
     # cur.execute("""INSERT INTO Weeks VALUES (?,?,?,?,?)""",
     #             (df['week']))
 
 if __name__ == "__main__":
-    get_data()
-    dash_app.run_dash_app()
+    # get_data()
+    # dash_app.run_dash_app()
     condense_db()
     conn.close()
