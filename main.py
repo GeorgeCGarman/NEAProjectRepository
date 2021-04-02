@@ -3,7 +3,7 @@ import sqlite3
 import json
 from textblob import TextBlob
 import dash_app
-from datetime import datetime
+from datetime import datetime, timedelta
 import pandas as pd
 from sqlalchemy import create_engine
 engine = create_engine('sqlite:///twitterDB.db', echo=True)
@@ -13,7 +13,10 @@ TWITTER_APP_KEY = "2iOmsupNqQn32DJ1EJuo1sYQz"  # Authentication codes for Twitte
 TWITTER_APP_SECRET = "0kDqCC3yRqbLEQtIThXe0nwoHS9UXhoLht7R0c2VHiSt2szHPw"
 
 TWITTER_ACCOUNTS = ["@VodafoneUK","@ThreeUK", "@O2", "@EE"]
-COLOURS = ["#d62728", "#000000", "#1f77b4", "#bcbd22"]
+COLOURS = {"@VodafoneUK": "#d62728",
+           "@ThreeUK": "#000000",
+           "@O2": "#1f77b4",
+           "@EE": "#bcbd22"}
 # COLOURS = ["#E60000", "#000000", "blue", "yellow"]
 # COLOURS = ["red", "black", "lightblue", "yellow"]
 
@@ -22,10 +25,11 @@ auth = tweepy.AppAuthHandler(TWITTER_APP_KEY, TWITTER_APP_SECRET)  # Authenticat
 # as a Twitter Developer
 api = tweepy.API(auth)
 
-conn = sqlite3.connect('twitterDB.db')  # Connect to sqlite3 database
-cur = conn.cursor()
+
 
 def get_data():  # Loop over each county (region) and request for tweets within it
+    conn = sqlite3.connect('twitterDB.db')  # Connect to sqlite3 database
+    cur = conn.cursor()
     all_regions = cur.execute("""SELECT name, latitude, longitude, radius
                                 FROM Regions""").fetchall()
 
@@ -52,6 +56,7 @@ def get_data():  # Loop over each county (region) and request for tweets within 
         else:
             count += 1
         print(count)
+    conn.close()
 
 
 def get_tweets_for_region(lat, long, radius):  # Makes the request to the API for tweets within a specific area
@@ -68,6 +73,8 @@ def get_tweets_for_region(lat, long, radius):  # Makes the request to the API fo
 
 def add_to_table(tweet, region):  # Parse the tweet JSON and insert it into the sqlite3 table. The region parameter
     # specifies the region the tweet came from
+    conn = sqlite3.connect('twitterDB.db')  # Connect to sqlite3 database
+    cur = conn.cursor()
     json_str = json.dumps(tweet._json)
     parsed = json.loads(json_str)
 
@@ -163,12 +170,14 @@ def add_to_table(tweet, region):  # Parse the tweet JSON and insert it into the 
     except sqlite3.IntegrityError:
         print('Error, repeated user')
         pass
+    conn.close()
 
 def condense_db():
-    def to_week(mydate):
-        mydate = datetime.strptime(mydate, '%Y-%m-%d %H:%M:%S')
-        return str(mydate.year) + '-' + str(mydate.month) + '-' + str(mydate.day // 7)
-    conn.row_factory = lambda cursor, row: row[0]  # c'est necessaire?
+    conn = sqlite3.connect('twitterDB.db')  # Connect to sqlite3 database
+    cur = conn.cursor()
+    def date_to_week(date):
+        return str(date.year) + '-' + str(date.month) + '-' + str(date.day // 7)
+    conn.row_factory = lambda cursor, row: row[0]  # necessary?
     all_regions = cur.execute("""SELECT name
                                         FROM Regions""").fetchall()
     conn.row_factory = lambda cursor, row: row
@@ -180,8 +189,15 @@ def condense_db():
     df = pd.read_sql_query("""SELECT region_name, created_at, operator_name, polarity 
                               FROM Tweets, TweetOperator
                               WHERE Tweets.tweet_id=TweetOperator.tweet_id""", conn)
+    present = datetime.now()
 
-    df['week'] = df['created_at'].apply(to_week)
+    max_date = datetime.strptime(max(df['created_at']), '%Y-%m-%d %H:%M:%S')
+    max_date = max_date - timedelta(days=7) # 14? *
+    df['created_at'] = pd.to_datetime(df['created_at'])
+    df = df[df['created_at'] < max_date]
+    if df.empty:
+        return
+    df['week'] = df['created_at'].apply(date_to_week)
     grouped = df.groupby(['region_name', 'week', 'operator_name'])
     agged = grouped\
         .agg(tweet_count=('polarity', 'count'), overall_sent=('polarity', 'sum'))\
@@ -192,13 +208,15 @@ def condense_db():
 
     max_overall_sent = max(map(abs, agged['overall_sent']))
     agged['overall_sent'] = agged['overall_sent'] / max_overall_sent
-
+    print(agged.head())
     agged.to_sql('Weeks', engine, if_exists='append', index=False)
-    # cur.execute("""INSERT INTO Weeks VALUES (?,?,?,?,?)""",
-    #             (df['week']))
-
-if __name__ == "__main__":
-    get_data()
-    dash_app.run_dash_app()
-    condense_db()
+    cur.execute("""DELETE FROM Tweets
+                   WHERE created_at < '{}'""".format(max_date))
+    conn.commit()
     conn.close()
+
+
+    # get_data()
+    # dash_app.run_dash_app()
+    # condense_db()
+    # conn.close()
