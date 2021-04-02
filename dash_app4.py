@@ -63,18 +63,21 @@ def overview():
     for name, group in df.groupby('operator_name'):  # Loop over each operator
         trace = go.Scatter(x=group['week'].tolist(), y=group['overall_sent'].tolist())
         trace.name = name
-        color = COLOURS[TWITTER_ACCOUNTS.index(name)]
+        color = COLOURS[name]
         trace.line = dict(color=color)
         line_fig.add_trace(trace)
     line_fig.update_layout(title='Overall Sentiment by Week')
-    line_fig.update_yaxes(range=[1,-1])
+    line_fig.update_yaxes(range=[1, -1])
 
     pie_df = df.groupby('operator_name').agg(tweet_count=('tweet_count', 'sum')).reset_index()  # Get the count of the
     # tweets for each operator
     labels = pie_df['operator_name']
     values = pie_df['tweet_count']
+    colors = pie_df['operator_name'].map(COLOURS)
+    print(colors)
     pie_fig = go.Figure(data=go.Pie(labels=labels, values=values))  # Create the pie chart
     # pie_fig.update_traces(marker=dict(colors=COLOURS)) *
+    pie_fig.update_traces(marker=dict(colors=colors))
     pie_fig.update_layout(title='Tweet Share')
 
     # layout describes the layout of the web-page.
@@ -182,7 +185,8 @@ def create_scatter(region_name, operator_name):
 app = dash.Dash()
 
 app.layout = html.Div(children=[html.Div(id='main-layout', children=main_layout()),
-                                html.Div(id='page-content', children=overview())])
+                                html.Div(id='page-content', children=overview()),
+                                html.Div(id='placeholder')])
 
 @app.callback([Output('detail', 'children')],
               [Input('map', 'clickData')],
@@ -208,11 +212,12 @@ def update_page(value):
     else:
         return account_view(value)
 
-@app.callback(Output('page-content', 'children'),
+@app.callback(Output('placeholder', 'children'),
               [Input('get-data-button', 'n_clicks')])
-def get_data():
+def update_data(n_clicks):
+    if n_clicks == 0: return
     main.get_data()
     main.condense_db()
-    return overview()
+    return None
 
 app.run_server()
