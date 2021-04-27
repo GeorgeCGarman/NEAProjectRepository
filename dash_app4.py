@@ -1,7 +1,6 @@
 import dash
 import dash_core_components as dcc
 import dash_html_components as html
-import dash_bootstrap_components as dbc
 import plotly.graph_objs as go
 from dash.dependencies import Input, Output, State
 
@@ -32,7 +31,9 @@ def main_layout():
     drop_down_opt = [{'label': 'All',
                       'value': 'All'}]  # Creating the drop-down menu with a separate option for each network operator
     for account in TWITTER_ACCOUNTS:
-        drop_down_opt.append({'label': account, 'value': account})  # Fill the drop-down with the twitter account names
+        label = account.replace('UK','')
+        label = label.replace('@', '')
+        drop_down_opt.append({'label': label, 'value': account})  # Fill the drop-down with the twitter account names
 
     # Setting up the page with a title, drop-down menu, and button
     layout = [html.H1('Network Performance Tracker', style={'font-family': 'verdana'}),
@@ -237,7 +238,7 @@ def update_account(value):
               [Input('get-data-button', 'n_clicks')])
 def update_data(n_clicks):
     if n_clicks == 0: return
-    main.get_data()
+    # main.get_data()
     main.condense_db()
     return None
 

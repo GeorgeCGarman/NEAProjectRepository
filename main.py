@@ -2,7 +2,6 @@ import tweepy
 import sqlite3
 import json
 from textblob import TextBlob
-import dash_app
 from datetime import datetime, date, time, timedelta
 import pandas as pd
 from sqlalchemy import create_engine
@@ -12,7 +11,7 @@ from sqlalchemy import create_engine
 TWITTER_APP_KEY = "2iOmsupNqQn32DJ1EJuo1sYQz"  # Authentication codes for Twitter API
 TWITTER_APP_SECRET = "0kDqCC3yRqbLEQtIThXe0nwoHS9UXhoLht7R0c2VHiSt2szHPw"
 
-TWITTER_ACCOUNTS = ["@VodafoneUK","@ThreeUK", "@O2", "@EE"]
+TWITTER_ACCOUNTS = ["@VodafoneUK", "@ThreeUK", "@O2", "@EE"]
 COLOURS = {"@VodafoneUK": "#d62728",
            "@ThreeUK": "#000000",
            "@O2": "#1f77b4",
@@ -25,6 +24,7 @@ auth = tweepy.AppAuthHandler(TWITTER_APP_KEY, TWITTER_APP_SECRET)  # Authenticat
 # Keys provided when creating a Twitter Application
 # as a Twitter Developer
 api = tweepy.API(auth)
+
 
 def get_data():  # Loop over each county (region) and request for tweets within it
     conn = sqlite3.connect(DB)  # Connect to sqlite3 database
@@ -51,7 +51,6 @@ def get_data():  # Loop over each county (region) and request for tweets within 
             except sqlite3.IntegrityError:  # If we find a repeated tweet, then we don't need to look at the rest of
                 # the tweets, as they are returned in chronological order so all the others will already be in the
                 # database
-                print('Breaked on integrity error')
                 break
 
         if rate_limit_reached:
@@ -87,9 +86,10 @@ def add_to_table(tweet, region):  # Parse the tweet JSON and insert it into the 
     text = parsed['full_text']
     sentiment = TextBlob(text).sentiment
     polarity = round(sentiment.polarity, 3)  # how positive or negative the tweet is
-    subjectivity = round(sentiment.subjectivity, 3)  # subjective sentences generally refer to personal opinion, emotion or
+    subjectivity = round(sentiment.subjectivity,
+                         3)  # subjective sentences generally refer to personal opinion, emotion or
     # judgment whereas objective refers to factual information
-    created_at = datetime.strptime(parsed['created_at'],'%a %b %d %H:%M:%S +0000 %Y') # Date tweet was created
+    created_at = datetime.strptime(parsed['created_at'], '%a %b %d %H:%M:%S +0000 %Y')  # Date tweet was created
     retweet_count = parsed['retweet_count']  # How many retweets
     favorite_count = parsed['favorite_count']  # How many favourites
     if parsed['place'] is not None:
@@ -99,16 +99,16 @@ def add_to_table(tweet, region):  # Parse the tweet JSON and insert it into the 
         country = place['country']
         cur.execute("""INSERT INTO Place VALUES (?,?,?,?)""",
                     (tweet_id,
-                            full_name,
-                            place_type,
-                            country))
+                     full_name,
+                     place_type,
+                     country))
         conn.commit()
 
     if parsed['coordinates'] is not None:
         coords = str(parsed['coordinates']['coordinates'])  # coordinates of the tweet (if given)
         cur.execute("""INSERT INTO Coordinates VALUES (?,?)""",
                     (tweet_id,
-                            coords))
+                     coords))
         conn.commit()
 
     # user attributes
@@ -131,77 +131,57 @@ def add_to_table(tweet, region):  # Parse the tweet JSON and insert it into the 
             conn.commit()
 
     cur.execute("""INSERT INTO Tweets VALUES (?,?,?,?,?,?,?,?,?)""",
-                    (tweet_id,
-                            text,
-                            polarity,
-                            subjectivity,
-                            created_at,
-                            retweet_count,
-                            favorite_count,
-                            user_id,
-                            region))
+                (tweet_id,
+                 text,
+                 polarity,
+                 subjectivity,
+                 created_at,
+                 retweet_count,
+                 favorite_count,
+                 user_id,
+                 region))
     conn.commit()
 
     cur.execute("""INSERT INTO Users VALUES (?,?,?,?,?,?,?,?,?,?)""",
-                    (user_id,
-                            user_name,
-                            user_location,
-                            user_description,
-                            user_verified,
-                            user_followers_count,
-                            user_friends_count,
-                            user_favourites_count,
-                            user_statuses_count,
-                            user_created_at))
+                (user_id,
+                 user_name,
+                 user_location,
+                 user_description,
+                 user_verified,
+                 user_followers_count,
+                 user_friends_count,
+                 user_favourites_count,
+                 user_statuses_count,
+                 user_created_at))
     conn.commit()
     conn.close()
 
+
 def condense_db():
     def date_to_week(my_date):
-        return str(my_date.year) + '-' + str(my_date.month) + '-' + str(my_date.day // 7)  # returns the week of the
+        return str(my_date.year) + '-' + str(my_date.month) + '-' + str(
+            (my_date.day - 1) // 7)  # returns the week of the
         # tweet
-
-    # conn = sqlite3.connect(DB)  # Connect to sqlite3 database
-    # cur = conn.cursor()
-    # conn.row_factory = lambda cursor, row: row[0]
-    # all_regions = cur.execute("""SELECT name
-    #                                     FROM Regions""").fetchall()
-    # conn.row_factory = lambda cursor, row: row
-    # year = datetime.now().year
-    # month = datetime.now().month
-    # day = datetime.now().day
-    # week = day // 7
 
     conn = sqlite3.connect(DB)  # Connect to sqlite3 database
     df = pd.read_sql_query("""SELECT region_name, created_at, operator_name, polarity
                               FROM Tweets, TweetOperator
-                              WHERE Tweets.tweet_id=TweetOperator.tweet_id""", conn) # Get the region, date,
+                              WHERE Tweets.tweet_id=TweetOperator.tweet_id""", conn)  # Get the region, date,
     # network operator and sentiment polarity of all the tweets in the database and put them in a Pandas dataframe
 
-    # present = datetime.now()
-
-    # max_date_in_db = datetime.strptime(max(df['created_at']), '%Y-%m-%d %H:%M:%S') # The date and time of the most recent tweet
-    # print(max_date_in_db.day)
-    # days_to_subtract = 7 + int(max_date_in_db.day % 7) # subtract 1 week from this and round it down to the previous week
-    # max_date = max_date_in_db - timedelta(days=days_to_subtract) + 1 # 14? *
-    # print(max_date)
-    # max_date.date
-    # df['created_at'] = pd.to_datetime(df['created_at'])
-    # print(df['created_at'].head())
-
-    max_date_in_db = datetime.strptime(max(df['created_at']), '%Y-%m-%d %H:%M:%S') # The date and time of the most
+    max_date_in_db = datetime.strptime(max(df['created_at']), '%Y-%m-%d %H:%M:%S')  # The date and time of the most
     # recent tweet
     days_to_subtract = 6 + int(
-        max_date_in_db.day % 7) # subtract 1 week from this and round it down to the previous week
+        max_date_in_db.day % 7)  # subtract 1 week from this and round it down to the previous week
     max_date = max_date_in_db - timedelta(days=days_to_subtract,
                                           hours=max_date_in_db.hour,
                                           minutes=max_date_in_db.minute,
-                                          seconds=max_date_in_db.second) # max_date represents the date of the first day
-    # of the week that is at least 1 week before the most recent tweet.
+                                          seconds=max_date_in_db.second)  # max_date represents the date of the first
+    # day of the week that is at least 1 week before the most recent tweet.
 
-    # print('max_date:', max_date)
-    # df['created_at'] = pd.to_datetime(df['created_at'])
-    # print(df['created_at'].head())
+    print(max_date_in_db)
+    print(days_to_subtract)
+    print(max_date)
 
     df['created_at'] = pd.to_datetime(df['created_at'])  # make the created_at field datetime objects
     df = df[df['created_at'] < max_date]  # Select the dates we want to condense
@@ -210,8 +190,8 @@ def condense_db():
     df['week'] = df['created_at'].apply(date_to_week)  # Create the new column 'week'
     grouped = df.groupby(['region_name', 'week', 'operator_name'])
     print('grouped:', grouped.head())
-    agged = grouped\
-        .agg(tweet_count=('polarity', 'count'), overall_sent=('polarity', 'sum'))\
+    agged = grouped \
+        .agg(tweet_count=('polarity', 'count'), overall_sent=('polarity', 'sum')) \
         .reset_index()  # Creates columns for the sum of the tweets and the sum of the polarities
     max_overall_sent = max(map(abs, agged['overall_sent']))  # overall_sent calculated in the usual way
     agged['overall_sent'] = agged['overall_sent'] / max_overall_sent
@@ -223,13 +203,5 @@ def condense_db():
     conn.commit()
     conn.close()
 
-    # DELETE
-    # FROM
-    # Tweets
-    # WHERE
-    # created_at < '2021-03-28 00:00:00'
-
-    # get_data()
-    # dash_app.run_dash_app()
-    # condense_db()
-    # conn.close()
+    # DELETE FROM Tweets
+    # WHERE created_at < '2021-04-21 00:00:00'
